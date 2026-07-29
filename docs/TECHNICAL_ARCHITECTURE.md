@@ -37,7 +37,7 @@ The prototype intentionally keeps the game in one client component. This made th
 
 ### Persistent state
 
-The `legacy` object is stored in `localStorage` under `rome-in-a-day-v1`.
+The version-2 save envelope is stored in `localStorage` under `rome-in-a-day-v2`. The loader falls back to `rome-in-a-day-v1` for automatic migration.
 
 Persistent data includes:
 
@@ -53,7 +53,7 @@ Persistent data includes:
 
 ### Run state
 
-Run state exists only in React memory:
+Run state exists in React memory and is mirrored into the optional `run` snapshot:
 
 - Selected campaign
 - Selected pre-dawn plan
@@ -67,7 +67,7 @@ Run state exists only in React memory:
 - Current event and temporary modifiers
 - Audio and install prompt state
 
-Refreshing during an attempt loses the physical city and current resource totals. This is currently consistent with the fiction but can feel accidental when caused by a browser refresh rather than sunset.
+Refreshing during an attempt presents a resume screen. Offline time is paused intentionally; no resources or construction progress are simulated while closed.
 
 ## Simulation
 
@@ -172,7 +172,7 @@ Browsers require user interaction before audio can begin. The interface therefor
 3. Fall back to the cached resource when offline.
 4. Fall back to `/` when no exact cached match exists.
 
-The current cache name is `rome-in-a-day-v7`. Increment this value when a release requires old offline assets to be discarded.
+The current cache name is `rome-in-a-day-v8`. Increment this value when a release requires old offline assets to be discarded.
 
 ## Responsive Design
 

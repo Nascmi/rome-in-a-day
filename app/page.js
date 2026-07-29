@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const DAY_LENGTH = 90;
-const SAVE_KEY = "rome-in-a-day-v1";
+const LEGACY_SAVE_KEY = "rome-in-a-day-v1";
+const SAVE_KEY = "rome-in-a-day-v2";
 
 const CAMPAIGNS = [
   {
@@ -132,6 +133,8 @@ function App() {
   const [lastPush, setLastPush] = useState(null);
   const [announcedPhase, setAnnouncedPhase] = useState("dawn");
   const [lastResult, setLastResult] = useState(null);
+  const [pendingRun, setPendingRun] = useState(null);
+  const [showReset, setShowReset] = useState(false);
   const latest = useRef({});
   const audioContext = useRef(null);
   const musicTimer = useRef(null);
@@ -194,18 +197,25 @@ function App() {
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
-      if (saved) {
-        const completedCampaigns = saved.completedCampaigns || (saved.victories > 0 ? ["rome"] : []);
+      const envelope = JSON.parse(localStorage.getItem(SAVE_KEY));
+      const legacySave = envelope?.version === 2 ? envelope.legacy : JSON.parse(localStorage.getItem(LEGACY_SAVE_KEY));
+      if (legacySave) {
+        const completedCampaigns = legacySave.completedCampaigns || (legacySave.victories > 0 ? ["rome"] : []);
         setLegacy({
           ...freshLegacy,
-          ...saved,
+          ...legacySave,
           completedCampaigns,
-          campaignStats: saved.campaignStats || {},
-          achievements: saved.achievements || [],
-          upgrades: { ...freshLegacy.upgrades, ...saved.upgrades }
+          campaignStats: legacySave.campaignStats || {},
+          achievements: legacySave.achievements || [],
+          upgrades: { ...freshLegacy.upgrades, ...legacySave.upgrades }
         });
-        if (completedCampaigns.includes("rome")) {
+        if (envelope?.version === 2) {
+          setSoundOn(envelope.preferences?.soundOn ?? true);
+          setMusicOn(envelope.preferences?.musicOn ?? false);
+        }
+        if (envelope?.version === 2 && envelope.run?.running && envelope.run.time > 0) {
+          setPendingRun(envelope.run);
+        } else if (completedCampaigns.includes("rome")) {
           setCampaignId(completedCampaigns.includes("italia") ? "mediterranean" : "italia");
           setTime(completedCampaigns.includes("italia") ? CAMPAIGNS[2].dayLength : CAMPAIGNS[1].dayLength);
         }
@@ -241,8 +251,33 @@ function App() {
   }, [musicOn, playTone]);
 
   useEffect(() => {
-    if (loaded) localStorage.setItem(SAVE_KEY, JSON.stringify(legacy));
-  }, [legacy, loaded]);
+    if (!loaded) return;
+    const timer = setTimeout(() => {
+      const activeRun = running ? {
+        running: true,
+        savedAt: Date.now(),
+        campaignId,
+        planId,
+        time,
+        resources,
+        workers,
+        constructionWorkers,
+        constructionQueue,
+        buildings,
+        dayEvent,
+        dayModifier,
+        lastPush,
+        announcedPhase
+      } : pendingRun;
+      localStorage.setItem(SAVE_KEY, JSON.stringify({
+        version: 2,
+        legacy,
+        preferences: { soundOn, musicOn },
+        run: activeRun || null
+      }));
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [loaded, legacy, soundOn, musicOn, running, pendingRun, campaignId, planId, time, resources, workers, constructionWorkers, constructionQueue, buildings, dayEvent, dayModifier, lastPush, announcedPhase]);
 
   useEffect(() => {
     latest.current = { score, buildings, won, campaignId, time, constructionQueue };
@@ -547,6 +582,62 @@ function App() {
     setInstallPrompt(null);
   };
 
+  const restoreRun = (run) => {
+    const campaign = CAMPAIGNS.find((item) => item.id === run.campaignId) || CAMPAIGNS[0];
+    const plan = PLANS.find((item) => item.id === run.planId) || PLANS[0];
+    setCampaignId(campaign.id);
+    setPlanId(plan.id);
+    setTime(Math.max(1, Math.min(run.time || campaign.dayLength + plan.time, campaign.dayLength + plan.time)));
+    setResources({ wood: 0, stone: 0, clay: 0, food: 0, ...(run.resources || {}) });
+    setWorkers({ wood: 0, stone: 0, clay: 0, food: 0, ...(run.workers || {}) });
+    setConstructionWorkers(Math.max(0, run.constructionWorkers || 0));
+    setConstructionQueue(Array.isArray(run.constructionQueue) ? run.constructionQueue.slice(0, 4) : []);
+    setBuildings({ ...emptyBuildings, ...(run.buildings || {}) });
+    setDayEvent(run.dayEvent || null);
+    setDayModifier({ gather: 1, cost: 1, construction: 1, ...(run.dayModifier || {}) });
+    setLastPush(run.lastPush || null);
+    setAnnouncedPhase(run.announcedPhase || "dawn");
+    setEnded(false);
+    setWon(false);
+    setLastResult(null);
+    setPendingRun(null);
+    setActiveTab("build");
+    setMessage(`Day ${legacy.day} resumes with ${Math.floor(run.time || 0)} seconds of daylight.`);
+    setRunning(true);
+  };
+
+  const abandonSavedRun = () => {
+    if (!pendingRun) return;
+    restoreRun(pendingRun);
+    setTimeout(() => finishDay(false), 250);
+  };
+
+  const resetAllProgress = () => {
+    setRunning(false);
+    setPendingRun(null);
+    setLegacy({ ...freshLegacy, achievements: [], completedCampaigns: [], campaignStats: {}, upgrades: { ...freshLegacy.upgrades } });
+    setCampaignId("rome");
+    setPlanId("balanced");
+    setTime(CAMPAIGNS[0].dayLength);
+    setResources({ wood: 15, stone: 12, clay: 8, food: 15 });
+    setWorkers({ wood: 0, stone: 0, clay: 0, food: 0 });
+    setConstructionWorkers(0);
+    setConstructionQueue([]);
+    setBuildings(emptyBuildings);
+    setDayEvent(null);
+    setDayModifier({ gather: 1, cost: 1, construction: 1 });
+    setLastPush(null);
+    setAnnouncedPhase("dawn");
+    setLastResult(null);
+    setEnded(false);
+    setWon(false);
+    setActiveTab("build");
+    setMessage("A new timeline begins with four builders and an empty field.");
+    setShowReset(false);
+    localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem(LEGACY_SAVE_KEY);
+  };
+
   const chooseLastPush = (push) => {
     if (lastPush || !running || time > 20) return;
     setLastPush(push.id);
@@ -761,6 +852,10 @@ function App() {
                   </button>
                 );
               })}
+              {!running && <div className="dangerZone">
+                <div><strong>BEGIN A NEW TIMELINE</strong><small>Return to Day 1 with four builders. This cannot be undone.</small></div>
+                <button onClick={() => setShowReset(true)}>RESET ALL PROGRESS</button>
+              </div>}
             </div>
           ) : (
             <div className="chronicle">
@@ -816,6 +911,36 @@ function App() {
 
       {bursts.map((b) => <span className="burst" key={b.id} style={{ left: b.x, top: b.y }}>{b.text}</span>)}
       {toast && <div className="toast"><span>{toast.icon}</span><div><small>{toast.title}</small><strong>{toast.text}</strong></div></div>}
+
+      {pendingRun && (
+        <div className="overlay">
+          <div className="nightCard resumeCard">
+            <span className="wreath">☼</span>
+            <small>A DAY PAUSED IN MEMORY</small>
+            <h2>THE BUILDERS AWAIT.</h2>
+            <p>Your active {CAMPAIGNS.find((campaign) => campaign.id === pendingRun.campaignId)?.name || "Rome"} attempt was safely paused.</p>
+            <div className="results"><span><small>DAY</small><b>{legacy.day}</b></span><span><small>LIGHT LEFT</small><b>{Math.floor(pendingRun.time)}s</b></span><span><small>PROJECTS</small><b>{pendingRun.constructionQueue?.length || 0}</b></span></div>
+            <button onClick={() => restoreRun(pendingRun)}>RESUME THE DAY <span>→</span></button>
+            <button className="secondaryAction" onClick={abandonSavedRun}>LET SUNSET CLAIM THIS ATTEMPT</button>
+            <em>Time remained paused while you were away.</em>
+          </div>
+        </div>
+      )}
+
+      {showReset && (
+        <div className="overlay">
+          <div className="nightCard resetCard">
+            <span className="wreath">⌛</span>
+            <small>IRREVERSIBLE DECISION</small>
+            <h2>ERASE THIS TIMELINE?</h2>
+            <p>This removes every worker, laurel, upgrade, achievement, district, campaign victory, record, and active project. You will return to Day 1 with four builders.</p>
+            <div className="resetSummary"><span>{totalWorkers} workers</span><span>{legacy.laurels} laurels</span><span>{legacy.completedCampaigns.length} chapters</span></div>
+            <button className="destructiveAction" onClick={resetAllProgress}>YES — ERASE ALL PROGRESS</button>
+            <button className="secondaryAction" onClick={() => setShowReset(false)}>KEEP THIS TIMELINE</button>
+            <em>Sound and music preferences will be preserved.</em>
+          </div>
+        </div>
+      )}
 
       {ended && (
         <div className="overlay">

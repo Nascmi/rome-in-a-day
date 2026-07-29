@@ -15,6 +15,18 @@ The game is live, public, installable, and synchronized with GitHub.
 
 ## Most Recent Gameplay Work
 
+The current pending release adds save reliability and a clean-slate reset:
+
+- Added the versioned `rome-in-a-day-v2` save envelope.
+- Added automatic migration from `rome-in-a-day-v1`.
+- Persisted the complete active day, including construction percentages.
+- Added Resume the Day and Let Sunset Claim This Attempt.
+- Paused daylight safely while the app is closed.
+- Persisted sound and music preferences.
+- Added a confirmed full-progress reset in the Legacy tab.
+- Reset returns the player to Day 1 with four builders.
+- Updated the PWA cache to `rome-in-a-day-v8`.
+
 The current live release converts instant purchases into timed construction:
 
 - Added a four-project construction ledger.
@@ -80,14 +92,6 @@ New projects:
 
 ## Known Limitations
 
-### The current run is not persisted
-
-Refreshing or installing an update during a run loses current resources, buildings, assignments, and time.
-
-### Campaign selection is not persisted
-
-The game chooses the furthest unlocked campaign at startup rather than remembering the last selected chapter.
-
 ### Large source component
 
 Game data, simulation logic, persistence, audio, and presentation are concentrated in `app/page.js`.
@@ -110,7 +114,7 @@ The app currently uses one scalable SVG icon. Dedicated PNG sizes and platform-s
 
 ## Highest-Value Next Steps
 
-1. Add run-state persistence and safe recovery.
+1. Add automated migration, resume, reset, and campaign-victory tests.
 2. Split game data and simulation out of `page.js`.
 3. Add a visible objective checklist that remains accessible while scrolled.
 4. Add lightweight local run statistics before considering external analytics.

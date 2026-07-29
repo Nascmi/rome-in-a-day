@@ -26,6 +26,8 @@ The game is touch-friendly, installable as a Progressive Web App, and playable o
 - Six achievements with laurel rewards
 - Animated builders, construction effects, synthesized sound, and ambient music
 - Automatic local progress saving
+- Safe resume for active days
+- Confirmed full-progress reset
 - Installable and offline-capable PWA
 - Responsive desktop and phone interfaces
 

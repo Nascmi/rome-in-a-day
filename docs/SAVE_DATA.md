@@ -4,36 +4,35 @@
 
 Provider: browser `localStorage`
 
-Key:
+Current key:
+
+```text
+rome-in-a-day-v2
+```
+
+Legacy migration key:
 
 ```text
 rome-in-a-day-v1
 ```
 
-The value is JSON containing only permanent legacy progress.
+The current value is a versioned envelope containing permanent progress, preferences, and an optional active run.
 
-## Current Shape
+## Current Envelope
 
 ```json
 {
-  "day": 1,
-  "laurels": 0,
-  "best": 0,
-  "total": 0,
-  "victories": 0,
-  "achievements": [],
-  "completedCampaigns": [],
-  "campaignStats": {},
-  "upgrades": {
-    "hands": 0,
-    "rations": 0,
-    "carts": 0,
-    "foremen": 0,
-    "architects": 0,
-    "legion": 0
-  }
+  "version": 2,
+  "legacy": {},
+  "preferences": {
+    "soundOn": true,
+    "musicOn": false
+  },
+  "run": null
 }
 ```
+
+`legacy` retains the permanent shape documented below. `run` is either `null` or a complete paused-day snapshot.
 
 ## Field Meanings
 
@@ -49,9 +48,42 @@ The value is JSON containing only permanent legacy progress.
 | `campaignStats` | Attempts, victories, best progress, and best remaining time by campaign |
 | `upgrades` | Permanent upgrade levels by ID |
 
+## Active Run Shape
+
+The run snapshot includes:
+
+- `savedAt`
+- `campaignId`
+- `planId`
+- Remaining `time`
+- Four resource totals
+- Four resource-worker assignments
+- Construction-worker assignment
+- Construction queue and project percentages
+- Completed building counts
+- Midday event
+- Temporary gathering, cost, and construction modifiers
+- Selected final order
+- Last announced day phase
+
+Snapshots are written shortly after meaningful state changes, including construction progress ticks.
+
+## Resume Behavior
+
+An active saved run does not begin automatically. The return screen offers:
+
+- Resume the Day
+- Let Sunset Claim This Attempt
+
+Time remains paused while the app is closed. Resuming restores the exact remaining daylight rather than simulating offline production.
+
+Abandoning restores the snapshot and immediately resolves it as an ordinary failed sunset so completed work can still produce laurels and statistics.
+
 ## Migration Behavior
 
-Loading merges stored data over `freshLegacy`. Missing fields receive current defaults.
+The loader checks `rome-in-a-day-v2` first. If it is missing, the original `rome-in-a-day-v1` legacy object is migrated automatically into the version-2 envelope.
+
+Loading merges stored legacy data over `freshLegacy`. Missing fields receive current defaults.
 
 Upgrade data is merged separately so new upgrade IDs can be added without erasing older levels.
 
@@ -72,34 +104,23 @@ When changing persistence:
 5. Never reduce saved worker or upgrade levels without an explicit player-facing reset design.
 6. Test a blank save and a legacy save.
 
+## Full Reset
+
+The Legacy tab exposes a confirmed full-progress reset.
+
+It removes:
+
+- Both local-storage keys
+- Workers and upgrades
+- Laurels
+- Achievements and districts
+- Campaign completions and records
+- The active run
+
+It then initializes a fresh version-2 save at Day 1 with four builders. Sound and music preferences remain in React state and are written back into the new envelope.
+
 ## Data Not Currently Saved
 
-- Active campaign selection
-- Current buildings
-- Current resource totals
-- Remaining time
-- Worker assignments
-- Construction-worker assignment
-- Construction queue and project progress
-- Selected plan
-- Current midday event
-- Audio preferences
-- Final-order selection
-
-## Recommended Next Save Revision
-
-Add a versioned envelope:
-
-```json
-{
-  "version": 2,
-  "legacy": {},
-  "preferences": {
-    "soundOn": true,
-    "musicOn": false
-  },
-  "run": null
-}
-```
-
-A resumable `run` should include a timestamp so elapsed real time can be reconciled safely rather than freezing or duplicating production.
+- Install-prompt availability
+- Temporary toast and animation state
+- The open interface tab
