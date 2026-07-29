@@ -8,9 +8,9 @@ Rome in a Day is live and synchronized:
 
 - Live game: https://rome-in-a-day-nathan.web.app
 - GitHub: https://github.com/Nascmi/rome-in-a-day
-- Gameplay commit: `b076496`
-- Firebase version: `fa31c26efa4b102c`
-- PWA cache: `rome-in-a-day-v9`
+- Gameplay commit: `37c62ed`
+- Firebase version: `3549bceddacfc4f6`
+- PWA cache: `rome-in-a-day-v13`
 - Save format: `rome-in-a-day-v2`
 
 The current game has three campaigns, timed construction, campaign objectives, active-run resume, permanent Legacy upgrades, and a confirmed full reset.

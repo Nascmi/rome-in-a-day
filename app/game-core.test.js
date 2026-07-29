@@ -21,7 +21,8 @@ import {
   restoreRunState,
   SAVE_KEY,
   upgradeCost,
-  workforceCoordination
+  workforceCoordination,
+  workforcePreset
 } from "./game-core";
 
 const upgrades = [
@@ -306,6 +307,18 @@ describe("workforce coordination", () => {
     expect(workforceCoordination(44)).toBeCloseTo(0.634, 2);
     expect(44 * workforceCoordination(44)).toBeGreaterThan(16);
     expect(44 * workforceCoordination(44)).toBeLessThan(30);
+  });
+
+  it("creates complete workforce doctrines without losing or inventing builders", () => {
+    for (const mode of ["gather", "balanced", "build", "stand-down"]) {
+      const preset = workforcePreset(44, mode);
+      const assigned = Object.values(preset.workers).reduce((sum, count) => sum + count, 0)
+        + preset.constructionWorkers;
+      expect(assigned).toBe(mode === "stand-down" ? 0 : 44);
+    }
+    expect(workforcePreset(44, "gather").constructionWorkers).toBe(0);
+    expect(workforcePreset(44, "balanced").constructionWorkers).toBe(11);
+    expect(workforcePreset(44, "build").constructionWorkers).toBe(22);
   });
 });
 

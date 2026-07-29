@@ -9,8 +9,8 @@ The game is live, public, installable, and synchronized with GitHub.
 - Live URL: https://rome-in-a-day-nathan.web.app
 - GitHub: https://github.com/Nascmi/rome-in-a-day
 - Firebase project: `rome-in-a-day-nathan`
-- Current gameplay commit: `b076496`
-- Current Firebase version: `fa31c26efa4b102c`
+- Current gameplay commit: `37c62ed`
+- Current Firebase version: `3549bceddacfc4f6`
 - Branch: `main`
 
 ## July 29 Progress Pin
@@ -55,6 +55,28 @@ The current local milestone restores the original progression:
 - Only the full Eternal City victory unlocks Italia and the Empire.
 - District victories reveal sourced “Rome Remembers” historical notes.
 - Historical dates use `B.C.` and `A.D.` exclusively.
+
+## Local Interaction Polish
+
+The current uncommitted polish pass improves command speed and moment-to-moment clarity:
+
+- Quick workforce doctrines allocate the entire roster to gathering, balanced work, construction, or idle status.
+- Every material and construction crew has safe `Â±5` controls.
+- A live bottleneck card identifies stalled construction, the critical missing resource, ready projects, and active-project completion estimates.
+- Building cards state exact resource deficits instead of showing only an unaffordable cost.
+- Dense skylines cluster repeated structures while preserving full-size civic landmarks and displaying total counts.
+- Desktop and narrow phone layouts were reviewed with production screenshots.
+
+The second polish pass adds emotional escalation and payoff:
+
+- Live pace forecasts warn when an active project mathematically cannot finish before sunset and when late objectives remain blocked.
+- Final-light danger adds a stronger vignette, countdown treatment, and accessible alert copy.
+- Minor, civic, and monumental structures now use distinct completion messages and sound patterns.
+- Quick workforce orders visibly show the currently active doctrine.
+- District, Senate, and Eternal City victories have separate presentation tiers.
+- The Eternal City receives an extended triumph fanfare and complete-city proclamation.
+- Status messages, alerts, and dialogs now expose appropriate live-region and modal semantics.
+- Reduced-motion preferences suppress nonessential animation, and narrow-screen assignment controls have larger touch targets.
 
 ## Most Recent Gameplay Work
 

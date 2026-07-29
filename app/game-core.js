@@ -260,6 +260,24 @@ export function workforceCoordination(assignedWorkers) {
   return assigned <= 16 ? 1 : Math.pow(16 / assigned, 0.45);
 }
 
+export function workforcePreset(totalWorkers, mode) {
+  const total = Math.max(0, Math.floor(Number(totalWorkers) || 0));
+  const construction = mode === "build"
+    ? Math.round(total * 0.5)
+    : mode === "balanced"
+      ? Math.max(0, Math.round(total * 0.25))
+      : 0;
+  const gatherers = mode === "stand-down" ? 0 : total - construction;
+  const base = Math.floor(gatherers / 4);
+  const remainder = gatherers % 4;
+  const jobs = ["wood", "stone", "clay", "food"];
+
+  return {
+    workers: Object.fromEntries(jobs.map((job, index) => [job, base + (index < remainder ? 1 : 0)])),
+    constructionWorkers: mode === "stand-down" ? 0 : construction
+  };
+}
+
 export function campaignEffects(campaignId, buildings, totalWorkers, resources) {
   if (campaignId === "rome") {
     const capacity = 4 + (buildings.hut || 0) * 3;

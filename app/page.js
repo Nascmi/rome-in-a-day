@@ -23,7 +23,8 @@ import {
   SAVE_KEY,
   professionEffects,
   upgradeCost,
-  workforceCoordination
+  workforceCoordination,
+  workforcePreset
 } from "./game-core";
 
 const DAY_LENGTH = 90;
@@ -246,6 +247,12 @@ function App() {
     [392, 523, 659].forEach((note, index) => setTimeout(() => playTone(note, 0.22, "sine", 0.045), index * 80));
   }, [playTone]);
 
+  const triumph = useCallback(() => {
+    [196, 261.6, 329.6, 392, 523.2, 659.2].forEach((note, index) => {
+      setTimeout(() => playTone(note, 0.32, index < 3 ? "triangle" : "sine", 0.052), index * 105);
+    });
+  }, [playTone]);
+
   useEffect(() => {
     try {
       const save = loadSave(localStorage, freshLegacy, UPGRADES);
@@ -435,11 +442,14 @@ function App() {
           }
         : old.city
     }));
-    if (victory) chime();
+    if (victory) {
+      if (cityFinal) triumph();
+      else chime();
+    }
     setMessage(victory
       ? cityFinal ? "Rome stands complete before sunset. The impossible is done." : current.cityStage ? `${current.cityStage.name} mastered. Tomorrow, Rome asks for more.` : `${completedCampaign.name} stands complete before sunset.`
       : `Night falls. History remembers what your builders learned. +${earned} laurels.`);
-  }, [chime, legacy.campaignStats]);
+  }, [chime, triumph, legacy.campaignStats]);
 
   useEffect(() => {
     if (!running) return;
@@ -489,11 +499,16 @@ function App() {
           return next;
         });
         const latestProject = completed[completed.length - 1];
+        const completedBuilding = BUILDINGS.find((building) => building.id === latestProject.buildingId);
+        const isCivic = ["market", "forum", "temple", "senate"].includes(latestProject.buildingId);
+        const isMonument = (completedBuilding?.points || latestProject.points || 0) >= 600;
         setBuildFlash(latestProject.buildingId);
-        setTimeout(() => setBuildFlash(null), 650);
-        setMessage(`${latestProject.name} complete. ${completed.length > 1 ? "The skyline surges upward." : "The scaffolding falls away."}`);
-        playTone(118, 0.16, "sawtooth", 0.035);
-        setTimeout(() => playTone(165, 0.1, "square", 0.02), 90);
+        setTimeout(() => setBuildFlash(null), isMonument ? 1100 : 650);
+        setMessage(`${latestProject.name} complete. ${isMonument ? "Rome answers with thunder." : isCivic ? "The city gathers around it." : completed.length > 1 ? "The skyline surges upward." : "The scaffolding falls away."}`);
+        const notes = isMonument ? [130.8, 196, 261.6, 392] : isCivic ? [146.8, 196, 246.9] : [118, 165];
+        notes.forEach((note, noteIndex) => setTimeout(() => {
+          playTone(note, isMonument ? 0.22 : 0.13, noteIndex === 0 ? "sawtooth" : "square", isMonument ? 0.045 : 0.028);
+        }, noteIndex * 85));
       }
     }, 250);
     return () => clearInterval(construction);
@@ -568,7 +583,8 @@ function App() {
     setWorkers((old) => {
       if (amount > 0 && idle <= 0) return old;
       if (amount < 0 && old[job] <= 0) return old;
-      return { ...old, [job]: old[job] + amount };
+      const change = amount > 0 ? Math.min(amount, idle) : -Math.min(Math.abs(amount), old[job]);
+      return { ...old, [job]: old[job] + change };
     });
   };
 
@@ -577,8 +593,24 @@ function App() {
     setConstructionWorkers((old) => {
       if (amount > 0 && idle <= 0) return old;
       if (amount < 0 && old <= 0) return old;
-      return old + amount;
+      const change = amount > 0 ? Math.min(amount, idle) : -Math.min(Math.abs(amount), old);
+      return old + change;
     });
+  };
+
+  const mobilizeWorkforce = (mode) => {
+    if (!running) startDay();
+    const preset = workforcePreset(totalWorkers, mode);
+    setWorkers(preset.workers);
+    setConstructionWorkers(preset.constructionWorkers);
+    const messages = {
+      gather: "All crews fan out for materials.",
+      balanced: "The workforce divides between supply and construction.",
+      build: "Half the workforce converges on the scaffolds.",
+      "stand-down": "The crews stand down for new orders."
+    };
+    setMessage(messages[mode]);
+    playTone(mode === "stand-down" ? 90 : 125, 0.08, "square", 0.02);
   };
 
   const assignProfession = (profession, amount) => {
@@ -607,6 +639,62 @@ function App() {
   ]));
   const canAfford = (building) => Object.entries(costFor(building)).every(([key, amount]) => resources[key] >= amount);
   const queuedCount = (buildingId) => constructionQueue.filter((project) => project.buildingId === buildingId).length;
+  const activeProject = constructionQueue[0] || null;
+  const activeProjectEta = activeProject
+    ? Math.max(1, Math.ceil(activeProject.seconds * (1 - activeProject.progress / 100) / Math.max(0.01, constructionSpeed(activeProject))))
+    : 0;
+  const bottleneck = (() => {
+    if (activeProject && constructionWorkers === 0) {
+      return { state: "stalled", label: "CONSTRUCTION STALLED", detail: `Assign builders to finish ${activeProject.name}.` };
+    }
+    if (activeProject) {
+      return { state: "building", label: `${activeProject.name.toUpperCase()} RISING`, detail: `About ${activeProjectEta}s at the current crew strength.` };
+    }
+    const nextObjective = remainingObjectives[0];
+    if (!nextObjective) return { state: "ready", label: "ROME STANDS READY", detail: "Every objective is complete." };
+    const target = BUILDINGS.find((building) => building.id === nextObjective.id);
+    if (!target) return { state: "ready", label: "CHOOSE THE NEXT WORK", detail: activeCampaign.brief };
+    const deficits = Object.entries(costFor(target))
+      .map(([resource, amount]) => ({ resource, amount: Math.max(0, Math.ceil(amount - resources[resource])) }))
+      .filter((deficit) => deficit.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+    if (deficits.length > 0) {
+      const critical = deficits[0];
+      const resourceName = JOBS.find((job) => job.id === critical.resource)?.name || critical.resource;
+      return { state: "gathering", label: `GATHER ${resourceName.toUpperCase()}`, detail: `${critical.amount} more needed to order ${target.name}.` };
+    }
+    return { state: "ready", label: `${target.name.toUpperCase()} READY`, detail: "Materials secured. Order the project." };
+  })();
+  const paceForecast = (() => {
+    if (!running || won) return null;
+    if (activeProject && activeProjectEta > time) {
+      return {
+        severity: "danger",
+        title: "DAYLIGHT WILL RUN OUT",
+        detail: `${activeProject.name} needs about ${activeProjectEta}s at this pace; only ${time}s remain.`
+      };
+    }
+    if (time <= 15 && remainingObjectives.length > 0) {
+      return {
+        severity: "danger",
+        title: `${remainingObjectives.length} OBJECTIVE${remainingObjectives.length === 1 ? "" : "S"} STILL STAND`,
+        detail: bottleneck.detail
+      };
+    }
+    if (time <= 30 && (bottleneck.state === "stalled" || bottleneck.state === "gathering")) {
+      return {
+        severity: "warning",
+        title: "ROME IS FALLING BEHIND",
+        detail: bottleneck.detail
+      };
+    }
+    return null;
+  })();
+  const workforceDoctrine = ["gather", "balanced", "build", "stand-down"].find((mode) => {
+    const preset = workforcePreset(totalWorkers, mode);
+    return preset.constructionWorkers === constructionWorkers
+      && JOBS.every((job) => preset.workers[job.id] === workers[job.id]);
+  }) || "custom";
 
   const build = (building) => {
     if (!running) startDay();
@@ -626,6 +714,7 @@ function App() {
       name: building.name,
       icon: building.icon,
       seconds: building.seconds,
+      points: building.points,
       progress: 0
     };
     setConstructionQueue((old) => [...old, project]);
@@ -805,7 +894,11 @@ function App() {
   const cityItems = useMemo(() => {
     const items = [];
     BUILDINGS.forEach((b) => {
-      for (let i = 0; i < buildings[b.id]; i++) items.push({ ...b, key: `${b.id}-${i}` });
+      const count = buildings[b.id];
+      const visibleCount = Math.min(count, b.id === "road" || b.id === "hut" ? 3 : 2);
+      for (let i = 0; i < visibleCount; i++) {
+        items.push({ ...b, count, clusterIndex: i, visibleCount, key: `${b.id}-${i}` });
+      }
     });
     return items;
   }, [buildings]);
@@ -823,11 +916,18 @@ function App() {
         : 0
     };
   }, [legacy.runHistory]);
+  const victoryTier = !won
+    ? "failure"
+    : lastResult?.cityFinal
+      ? "eternal"
+      : lastResult?.cityStage?.id === "senate"
+        ? "senate"
+        : "district";
 
   if (!loaded) return <main className="loading">Waking the builders…</main>;
 
   return (
-    <main className={`game phase-${dayPhase} campaign-${campaignId}`}>
+    <main className={`game phase-${dayPhase} campaign-${campaignId} ${paceForecast ? `pace-${paceForecast.severity}` : ""}`}>
       <header className="topbar">
         <div className="brand">
           <span className="spqr">SPQR</span>
@@ -847,8 +947,9 @@ function App() {
           <div className="city">
             {cityItems.length === 0 && constructionQueue.length === 0 && <div className="emptyCity"><span>⅋</span><p>An empty field awaits.</p></div>}
             {cityItems.map((item, index) => (
-              <div className={`cityBuilding ${item.id} ${buildFlash === item.id && index === cityItems.length - 1 ? "buildingNow" : ""}`} key={item.key} style={{ "--i": index }}>
+              <div className={`cityBuilding ${item.id} ${buildFlash === item.id && item.clusterIndex === item.visibleCount - 1 ? "buildingNow" : ""}`} key={item.key} style={{ "--i": index }} aria-label={`${item.name}, ${item.count} built`}>
                 <span>{item.icon}</span>
+                {item.count > item.visibleCount && item.clusterIndex === item.visibleCount - 1 && <b className="cityCount">×{item.count}</b>}
               </div>
             ))}
             {constructionQueue.slice(0, buildSlots).map((project, index) => (
@@ -882,7 +983,7 @@ function App() {
         ))}
       </section>
 
-      <div className="message"><span>✦</span>{message}</div>
+      <div className="message" role="status" aria-live="polite"><span>✦</span>{message}</div>
 
       {!running && !ended && (
         <section className="chapterObjectiveBar">
@@ -923,6 +1024,14 @@ function App() {
         </section>
       )}
 
+      {paceForecast && (
+        <section className={`paceForecast ${paceForecast.severity}`} role="alert">
+          <span>{paceForecast.severity === "danger" ? "◐" : "◒"}</span>
+          <div><strong>{paceForecast.title}</strong><small>{paceForecast.detail}</small></div>
+          <b>{time}s</b>
+        </section>
+      )}
+
       {running && time <= 20 && !lastPush && (
         <section className="lastPush">
           <div className="lastPushTitle"><small>SUNSET DECISION</small><strong>ONE FINAL ORDER</strong><span>{time}s</span></div>
@@ -939,20 +1048,33 @@ function App() {
       <section className="workArea">
         <aside className="workers">
           <div className="panelTitle"><span>WORKFORCE</span><strong>{idle} idle / {totalWorkers}</strong></div>
+          <div className={`bottleneck ${bottleneck.state}`} aria-live="polite">
+            <span>{bottleneck.state === "stalled" ? "!" : bottleneck.state === "building" ? "⌁" : bottleneck.state === "gathering" ? "◇" : "✓"}</span>
+            <div><strong>{bottleneck.label}</strong><small>{bottleneck.detail}</small></div>
+          </div>
           {guidance && <div className="guidance"><span>?</span><div><strong>{guidance.title}</strong><small>{guidance.text}</small></div></div>}
           {totalWorkers >= 32 && <div className="logisticsNote"><span>⚑</span><div><strong>LEGION LOGISTICS · {Math.round(coordinationScale * 100)}%</strong><small>Rome cannot coordinate every active crew at full efficiency. Leave builders idle or accept diminishing output.</small></div></div>}
+          <div className="workforceOrders">
+            <small>QUICK ORDERS</small>
+            <div>
+              <button className={workforceDoctrine === "gather" ? "active" : ""} aria-pressed={workforceDoctrine === "gather"} onClick={() => mobilizeWorkforce("gather")}><b>♣</b><span>Gather</span></button>
+              <button className={workforceDoctrine === "balanced" ? "active" : ""} aria-pressed={workforceDoctrine === "balanced"} onClick={() => mobilizeWorkforce("balanced")}><b>⚖</b><span>Balance</span></button>
+              <button className={workforceDoctrine === "build" ? "active" : ""} aria-pressed={workforceDoctrine === "build"} onClick={() => mobilizeWorkforce("build")}><b>⌁</b><span>Build</span></button>
+              <button className={workforceDoctrine === "stand-down" ? "active" : ""} aria-pressed={workforceDoctrine === "stand-down"} onClick={() => mobilizeWorkforce("stand-down")}><b>○</b><span>Clear</span></button>
+            </div>
+          </div>
           <div className="workerArt">{Array.from({ length: Math.min(totalWorkers, 16) }).map((_, i) => <i key={i}>♟</i>)}</div>
           {JOBS.map((job) => (
             <div className="job" key={job.id}>
               <span className="jobDot" style={{ background: job.color }} />
               <span>{job.name}<small>{(effectiveCrew(workers[job.id]) * resourceGatherRate(job.id)).toFixed(1)}/s</small></span>
-              <div><button onClick={() => assign(job.id, -1)}>−</button><b>{workers[job.id]}</b><button onClick={() => assign(job.id, 1)}>+</button></div>
+              <div className="assignmentControl"><button className="bulk" onClick={() => assign(job.id, -5)}>−5</button><button onClick={() => assign(job.id, -1)}>−</button><b>{workers[job.id]}</b><button onClick={() => assign(job.id, 1)}>+</button><button className="bulk" onClick={() => assign(job.id, 5)}>+5</button></div>
             </div>
           ))}
           <div className="job constructionJob">
             <span className="jobDot" />
             <span>Construction<small>{constructionSpeed(null).toFixed(2)}× base speed</small></span>
-            <div><button onClick={() => assignConstruction(-1)}>−</button><b>{constructionWorkers}</b><button onClick={() => assignConstruction(1)}>+</button></div>
+            <div className="assignmentControl"><button className="bulk" onClick={() => assignConstruction(-5)}>−5</button><button onClick={() => assignConstruction(-1)}>−</button><b>{constructionWorkers}</b><button onClick={() => assignConstruction(1)}>+</button><button className="bulk" onClick={() => assignConstruction(5)}>+5</button></div>
           </div>
           <div className="professionHead">
             <span>DAY PROFESSIONS</span>
@@ -1013,14 +1135,18 @@ function App() {
           {activeTab === "build" ? (
             <div className="cards">
               {BUILDINGS.filter((building) => !building.campaigns || building.campaigns.includes(campaignId)).map((building) => {
-                const affordable = canAfford(building);
+                const buildingCost = costFor(building);
+                const missing = Object.entries(buildingCost)
+                  .map(([resource, amount]) => [resource, Math.max(0, Math.ceil(amount - resources[resource]))])
+                  .filter(([, amount]) => amount > 0);
+                const affordable = missing.length === 0;
                 const inQueue = queuedCount(building.id);
                 const capped = buildings[building.id] + inQueue >= building.max;
                 const objectiveNeed = activeCampaign.goal[building.id];
                 return (
                   <button className={`buildCard ${affordable && !capped ? "ready" : ""} ${objectiveNeed ? "objectiveBuild" : ""}`} key={building.id} onClick={() => build(building)} disabled={capped}>
                     <span className={`buildingIcon ${building.id}`}>{building.icon}</span>
-                    <span className="buildCopy"><small>{building.roman}</small><strong>{building.name}</strong><em>{building.desc}</em><span className="cost">{capped && inQueue ? `${inQueue} QUEUED` : inQueue ? `${inQueue} queued · ${formatCost(costFor(building))}` : capped ? "COMPLETE" : `${formatCost(costFor(building))} · ${building.seconds}s base`}</span></span>
+                    <span className="buildCopy"><small>{building.roman}</small><strong>{building.name}</strong><em>{building.desc}</em><span className="cost">{capped && inQueue ? `${inQueue} QUEUED` : inQueue ? `${inQueue} queued · ${formatCost(buildingCost)}` : capped ? "COMPLETE" : affordable ? `${formatCost(buildingCost)} · ${building.seconds}s base` : `NEED ${missing.map(([resource, amount]) => `${amount} ${resource}`).join(" · ")}`}</span></span>
                     <b>{objectiveNeed ? `${buildings[building.id]}${inQueue ? `+${inQueue}` : ""}/${objectiveNeed} GOAL` : `${buildings[building.id]}${inQueue ? `+${inQueue}` : ""}/${building.max}`}</b>
                   </button>
                 );
@@ -1140,14 +1266,14 @@ function App() {
       </footer>
 
       {bursts.map((b) => <span className="burst" key={b.id} style={{ left: b.x, top: b.y }}>{b.text}</span>)}
-      {toast && <div className="toast"><span>{toast.icon}</span><div><small>{toast.title}</small><strong>{toast.text}</strong></div></div>}
+      {toast && <div className="toast" role="status" aria-live="polite"><span>{toast.icon}</span><div><small>{toast.title}</small><strong>{toast.text}</strong></div></div>}
 
       {pendingRun && (
-        <div className="overlay">
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="resume-title">
           <div className="nightCard resumeCard">
             <span className="wreath">☼</span>
             <small>A DAY PAUSED IN MEMORY</small>
-            <h2>THE BUILDERS AWAIT.</h2>
+            <h2 id="resume-title">THE BUILDERS AWAIT.</h2>
             <p>Your active {CAMPAIGNS.find((campaign) => campaign.id === pendingRun.campaignId)?.name || "Rome"} attempt was safely paused.</p>
             <div className="results"><span><small>DAY</small><b>{legacy.day}</b></span><span><small>LIGHT LEFT</small><b>{Math.floor(pendingRun.time)}s</b></span><span><small>PROJECTS</small><b>{pendingRun.constructionQueue?.length || 0}</b></span></div>
             <button onClick={() => restoreRun(pendingRun)}>RESUME THE DAY <span>→</span></button>
@@ -1158,11 +1284,11 @@ function App() {
       )}
 
       {showReset && (
-        <div className="overlay">
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="reset-title">
           <div className="nightCard resetCard">
             <span className="wreath">⌛</span>
             <small>IRREVERSIBLE DECISION</small>
-            <h2>ERASE THIS TIMELINE?</h2>
+            <h2 id="reset-title">ERASE THIS TIMELINE?</h2>
             <p>This removes every worker, laurel, upgrade, achievement, district, campaign victory, record, and active project. You will return to Day 1 with four builders.</p>
             <div className="resetSummary"><span>{totalWorkers} workers</span><span>{legacy.laurels} laurels</span><span>{legacy.completedCampaigns.length} chapters</span></div>
             <button className="destructiveAction" onClick={resetAllProgress}>YES — ERASE ALL PROGRESS</button>
@@ -1173,12 +1299,25 @@ function App() {
       )}
 
       {ended && (
-        <div className="overlay">
-          <div className="nightCard">
+        <div className={`overlay victoryOverlay ${victoryTier}`} role="dialog" aria-modal="true" aria-labelledby="result-title">
+          <div className={`nightCard ${victoryTier}`}>
             <span className="wreath">❧</span>
             <small>{won ? lastResult?.cityStage && !lastResult.cityFinal ? "DISTRICT MASTERED" : "THE IMPOSSIBLE DAY" : "SUNSET • ATTEMPT COMPLETE"}</small>
-            <h2>{won ? lastResult?.cityStage && !lastResult.cityFinal ? `${lastResult.cityStage.name.toUpperCase()} MASTERED.` : `${activeCampaign.name.toUpperCase()} STANDS.` : `${activeCampaign.name.toUpperCase()} WASN’T BUILT TODAY.`}</h2>
+            <h2 id="result-title">{won ? lastResult?.cityStage && !lastResult.cityFinal ? `${lastResult.cityStage.name.toUpperCase()} MASTERED.` : `${activeCampaign.name.toUpperCase()} STANDS.` : `${activeCampaign.name.toUpperCase()} WASN’T BUILT TODAY.`}</h2>
             <p>{won ? lastResult?.cityStage && !lastResult.cityFinal ? "The builders know this district now. Tomorrow they must rebuild it—and add more Rome before sunset." : `Against time itself, your builders completed the works of ${activeCampaign.name} before nightfall.` : lastResult?.progress >= 0.9 ? "So close that tomorrow already feels different." : "The roads vanish. The walls return to dust. But skilled hands remember."}</p>
+            {victoryTier === "senate" && (
+              <div className="senateCeremony">
+                <span>SPQR</span>
+                <div><small>THE SENATE CONVENES</small><strong>Rome now speaks with one civic voice.</strong></div>
+              </div>
+            )}
+            {victoryTier === "eternal" && (
+              <div className="eternalTriumph" aria-label="The complete city of Rome">
+                <div><span>═</span><span>⌂</span><span>▦</span><span>▥</span><span>Π</span><span>◉</span></div>
+                <small>URBS AETERNA</small>
+                <strong>ROME WAS BUILT IN A DAY.</strong>
+              </div>
+            )}
             {lastResult && (
               <div className={`attemptVerdict ${won ? "victory" : ""}`}>
                 <span>{won ? lastResult.timeRemaining <= 3 ? "BY THE FINAL RAY" : "BUILT BEFORE SUNSET" : lastResult.progress >= 0.9 ? "ALMOST IMPOSSIBLE" : "WHAT STOPPED THE BUILD"}</span>
