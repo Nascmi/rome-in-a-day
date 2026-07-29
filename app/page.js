@@ -14,15 +14,15 @@ const CAMPAIGNS = [
   },
   {
     id: "italia", chapter: "II", name: "Italia", subtitle: "Unite the Peninsula",
-    dayLength: 105, unlock: "rome", reward: 40,
-    goal: { road: 12, hut: 6, aqueduct: 2, temple: 1 },
-    brief: "Bind the towns together with roads, water, homes, and law."
+    dayLength: 125, unlock: "rome", reward: 55, costScale: 1.65,
+    goal: { road: 18, hut: 12, workshop: 6, aqueduct: 4, temple: 2, granary: 2, forum: 1, fort: 1 },
+    brief: "Unite Italia with roads, granaries, a forum, and a fortified frontier."
   },
   {
     id: "mediterranean", chapter: "III", name: "Mare Nostrum", subtitle: "Command the Inland Sea",
-    dayLength: 120, unlock: "italia", reward: 60,
-    goal: { road: 15, workshop: 4, aqueduct: 3, temple: 2, colosseum: 1 },
-    brief: "Build the ports and civic works of a Mediterranean power."
+    dayLength: 180, unlock: "italia", reward: 90, costScale: 1.9,
+    goal: { road: 18, workshop: 6, aqueduct: 4, temple: 2, colosseum: 1, harbor: 2, shipyard: 1, lighthouse: 1, basilica: 1 },
+    brief: "Command the sea with harbors, a shipyard, lighthouse, and imperial basilica."
   }
 ];
 
@@ -47,11 +47,18 @@ const JOBS = [
 
 const BUILDINGS = [
   { id: "road", name: "Road", roman: "VIA", icon: "═", cost: { stone: 10 }, points: 8, max: 18, desc: "Every 3 roads makes everyone 5% faster." },
-  { id: "hut", name: "Insula", roman: "DOMUS", icon: "⌂", cost: { wood: 12, clay: 8 }, points: 20, max: 12, desc: "A humble home. Adds one worker tomorrow." },
+  { id: "hut", name: "Insula", roman: "DOMUS", icon: "⌂", cost: { wood: 12, clay: 8 }, points: 20, max: 12, desc: "A humble home for the growing population." },
   { id: "workshop", name: "Workshop", roman: "OFFICINA", icon: "⚒", cost: { wood: 22, stone: 15 }, points: 45, max: 6, desc: "Raises all gathering by 12% this day." },
-  { id: "aqueduct", name: "Aqueduct", roman: "AQUAEDUCTUS", icon: "⋂", cost: { stone: 38, clay: 25 }, points: 90, max: 4, desc: "Feeds a growing city. Big renown." },
+  { id: "aqueduct", name: "Aqueduct", roman: "AQUAEDUCTUS", icon: "⋂", cost: { stone: 38, clay: 25 }, points: 90, max: 4, desc: "Carries fresh water across the land." },
   { id: "temple", name: "Temple", roman: "TEMPLUM", icon: "♜", cost: { wood: 25, stone: 55, clay: 30 }, points: 160, max: 2, desc: "A monument worthy of memory." },
-  { id: "colosseum", name: "Colosseum", roman: "COLOSSEUM", icon: "◉", cost: { wood: 90, stone: 160, clay: 110, food: 60 }, points: 600, max: 1, desc: "Finish it before sunset to build Rome in a day." }
+  { id: "colosseum", name: "Colosseum", roman: "COLOSSEUM", icon: "◉", cost: { wood: 90, stone: 160, clay: 110, food: 60 }, points: 600, max: 1, campaigns: ["rome", "mediterranean"], desc: "The crowning achievement of the capital." },
+  { id: "granary", name: "Granary", roman: "HORREUM", icon: "▤", cost: { wood: 95, clay: 120, food: 70 }, points: 340, max: 2, campaigns: ["italia"], desc: "Feeds the towns of a united peninsula." },
+  { id: "forum", name: "Great Forum", roman: "FORUM", icon: "▥", cost: { wood: 140, stone: 210, clay: 90, food: 80 }, points: 720, max: 1, campaigns: ["italia"], desc: "The civic heart of all Italia." },
+  { id: "fort", name: "Frontier Fort", roman: "CASTRUM", icon: "▰", cost: { wood: 190, stone: 260, clay: 120, food: 140 }, points: 900, max: 1, campaigns: ["italia"], desc: "Secures the roads and distant settlements." },
+  { id: "harbor", name: "Grand Harbor", roman: "PORTUS", icon: "≋", cost: { wood: 260, stone: 210, clay: 140, food: 180 }, points: 1100, max: 2, campaigns: ["mediterranean"], desc: "Opens a gateway across the inland sea." },
+  { id: "shipyard", name: "Imperial Shipyard", roman: "NAVALIA", icon: "ϟ", cost: { wood: 440, stone: 280, clay: 160, food: 250 }, points: 1700, max: 1, campaigns: ["mediterranean"], desc: "Constructs the fleet that binds the empire." },
+  { id: "lighthouse", name: "Great Lighthouse", roman: "PHARUS", icon: "♢", cost: { wood: 180, stone: 520, clay: 240, food: 170 }, points: 1900, max: 1, campaigns: ["mediterranean"], desc: "Guides Roman ships safely home." },
+  { id: "basilica", name: "Imperial Basilica", roman: "BASILICA", icon: "♚", cost: { wood: 300, stone: 620, clay: 300, food: 260 }, points: 2400, max: 1, campaigns: ["mediterranean"], desc: "The monumental seat of imperial power." }
 ];
 
 const UPGRADES = [
@@ -132,6 +139,7 @@ function App() {
   const roadBonus = 1 + Math.floor(buildings.road / 3) * 0.05;
   const workshopBonus = 1 + buildings.workshop * 0.12;
   const gatherRate = (1 + legacy.upgrades.hands * 0.15) * roadBonus * workshopBonus * forumBonus * activePlan.gather * dayModifier.gather;
+  const effectiveCrew = (count) => count <= 8 ? count : 8 + Math.pow(count - 8, 0.72);
   const campaignComplete = Object.entries(activeCampaign.goal).every(([id, needed]) => buildings[id] >= needed);
   const objectiveProgress = Object.entries(activeCampaign.goal).reduce((sum, [id, needed]) => sum + Math.min(1, buildings[id] / needed), 0) / Object.keys(activeCampaign.goal).length;
 
@@ -265,7 +273,7 @@ function App() {
       setResources((old) => {
         const next = { ...old };
         JOBS.forEach((job) => {
-          next[job.id] += workers[job.id] * gatherRate * 0.5;
+          next[job.id] += effectiveCrew(workers[job.id]) * gatherRate * 0.5;
         });
         return next;
       });
@@ -336,7 +344,7 @@ function App() {
 
   const costFor = (building) => Object.fromEntries(Object.entries(building.cost).map(([key, amount]) => [
     key,
-    Math.max(1, Math.ceil(amount * Math.max(0.5, 1 - legacy.upgrades.architects * 0.05) * activePlan.cost * dayModifier.cost))
+    Math.max(1, Math.ceil(amount * Math.max(0.65, Math.max(0.5, 1 - legacy.upgrades.architects * 0.05) * activePlan.cost * dayModifier.cost) * (activeCampaign.costScale || 1)))
   ]));
   const canAfford = (building) => Object.entries(costFor(building)).every(([key, amount]) => resources[key] >= amount);
 
@@ -485,11 +493,12 @@ function App() {
       <section className="workArea">
         <aside className="workers">
           <div className="panelTitle"><span>WORKFORCE</span><strong>{idle} idle / {totalWorkers}</strong></div>
+          {totalWorkers >= 32 && <div className="logisticsNote"><span>⚑</span><div><strong>LEGION LOGISTICS</strong><small>Large crews stay powerful, but each additional worker adds less output.</small></div></div>}
           <div className="workerArt">{Array.from({ length: Math.min(totalWorkers, 16) }).map((_, i) => <i key={i}>♟</i>)}</div>
           {JOBS.map((job) => (
             <div className="job" key={job.id}>
               <span className="jobDot" style={{ background: job.color }} />
-              <span>{job.name}<small>{(workers[job.id] * gatherRate).toFixed(1)}/s</small></span>
+              <span>{job.name}<small>{(effectiveCrew(workers[job.id]) * gatherRate).toFixed(1)}/s</small></span>
               <div><button onClick={() => assign(job.id, -1)}>−</button><b>{workers[job.id]}</b><button onClick={() => assign(job.id, 1)}>+</button></div>
             </div>
           ))}
@@ -517,14 +526,15 @@ function App() {
 
           {activeTab === "build" ? (
             <div className="cards">
-              {BUILDINGS.map((building) => {
+              {BUILDINGS.filter((building) => !building.campaigns || building.campaigns.includes(campaignId)).map((building) => {
                 const affordable = canAfford(building);
                 const capped = buildings[building.id] >= building.max;
+                const objectiveNeed = activeCampaign.goal[building.id];
                 return (
-                  <button className={`buildCard ${affordable && !capped ? "ready" : ""}`} key={building.id} onClick={() => build(building)} disabled={capped}>
+                  <button className={`buildCard ${affordable && !capped ? "ready" : ""} ${objectiveNeed ? "objectiveBuild" : ""}`} key={building.id} onClick={() => build(building)} disabled={capped}>
                     <span className={`buildingIcon ${building.id}`}>{building.icon}</span>
                     <span className="buildCopy"><small>{building.roman}</small><strong>{building.name}</strong><em>{building.desc}</em><span className="cost">{capped ? "COMPLETE" : formatCost(costFor(building))}</span></span>
-                    <b>{buildings[building.id]}/{building.max}</b>
+                    <b>{objectiveNeed ? `${buildings[building.id]}/${objectiveNeed} GOAL` : `${buildings[building.id]}/${building.max}`}</b>
                   </button>
                 );
               })}
