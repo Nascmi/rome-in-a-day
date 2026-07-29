@@ -1,0 +1,4 @@
+node_modules/
+.next/
+.visual-review/
+npm-debug.log*
