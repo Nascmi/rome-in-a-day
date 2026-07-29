@@ -516,6 +516,9 @@ function App() {
   };
 
   const sunPct = ((currentDayLength - time) / currentDayLength) * 100;
+  const clampedSunPct = Math.max(0, Math.min(100, sunPct));
+  const sunX = 4 + clampedSunPct * 0.88;
+  const sunY = 116 - Math.sin((clampedSunPct / 100) * Math.PI) * 92;
   const cityItems = useMemo(() => {
     const items = [];
     BUILDINGS.forEach((b) => {
@@ -541,7 +544,7 @@ function App() {
         </div>
       </header>
 
-      <section className={`sky ${dayPhase}`} style={{ "--sun": `${sunPct}%` }}>
+      <section className={`sky ${dayPhase}`} style={{ "--sun": `${sunPct}%`, "--sun-x": `${sunX}%`, "--sun-y": `${sunY}px` }}>
         <div className="sun" />
         <div className="horizon">
           <div className="city">
