@@ -38,6 +38,12 @@ const DAY_EVENTS = [
   { id: "engineer", title: "A Brilliant Engineer", text: "Construction costs 15% less for the rest of the day.", icon: "△" }
 ];
 
+const LAST_PUSHES = [
+  { id: "rally", name: "Rally the Crews", icon: "⚑", desc: "+45% gathering until sunset." },
+  { id: "salvage", name: "Strip the Scaffolds", icon: "⚒", desc: "Recover 30 of every material." },
+  { id: "simplify", name: "Simplify the Plans", icon: "△", desc: "Construction costs 15% less until sunset." }
+];
+
 const JOBS = [
   { id: "wood", name: "Timber", icon: "♣", color: "#6d8b55" },
   { id: "stone", name: "Stone", icon: "◆", color: "#8b8d88" },
@@ -91,7 +97,7 @@ const ACHIEVEMENTS = [
 const emptyBuildings = Object.fromEntries(BUILDINGS.map((b) => [b.id, 0]));
 const freshLegacy = {
   day: 1, laurels: 0, best: 0, total: 0, victories: 0, achievements: [],
-  completedCampaigns: [],
+  completedCampaigns: [], campaignStats: {},
   upgrades: { hands: 0, rations: 0, carts: 0, foremen: 0, architects: 0, legion: 0 }
 };
 
@@ -121,6 +127,9 @@ function App() {
   const [toast, setToast] = useState(null);
   const [dayEvent, setDayEvent] = useState(null);
   const [dayModifier, setDayModifier] = useState({ gather: 1, cost: 1 });
+  const [lastPush, setLastPush] = useState(null);
+  const [announcedPhase, setAnnouncedPhase] = useState("dawn");
+  const [lastResult, setLastResult] = useState(null);
   const latest = useRef({});
   const audioContext = useRef(null);
   const musicTimer = useRef(null);
@@ -142,6 +151,19 @@ function App() {
   const effectiveCrew = (count) => count <= 8 ? count : 8 + Math.pow(count - 8, 0.72);
   const campaignComplete = Object.entries(activeCampaign.goal).every(([id, needed]) => buildings[id] >= needed);
   const objectiveProgress = Object.entries(activeCampaign.goal).reduce((sum, [id, needed]) => sum + Math.min(1, buildings[id] / needed), 0) / Object.keys(activeCampaign.goal).length;
+  const remainingObjectives = Object.entries(activeCampaign.goal)
+    .filter(([id, needed]) => buildings[id] < needed)
+    .map(([id, needed]) => ({
+      id,
+      name: BUILDINGS.find((building) => building.id === id)?.name || id,
+      built: buildings[id],
+      needed,
+      remaining: needed - buildings[id]
+    }))
+    .sort((a, b) => (a.built / a.needed) - (b.built / b.needed));
+  const currentDayLength = activeCampaign.dayLength + activePlan.time;
+  const elapsedRatio = 1 - (time / currentDayLength);
+  const dayPhase = !running ? "dawn" : time <= 15 ? "final" : elapsedRatio >= 0.78 ? "evening" : elapsedRatio >= 0.45 ? "afternoon" : "morning";
 
   const playTone = useCallback((frequency, duration = 0.12, type = "triangle", volume = 0.035) => {
     if (!soundOn || typeof window === "undefined") return;
@@ -173,6 +195,7 @@ function App() {
           ...freshLegacy,
           ...saved,
           completedCampaigns,
+          campaignStats: saved.campaignStats || {},
           achievements: saved.achievements || [],
           upgrades: { ...freshLegacy.upgrades, ...saved.upgrades }
         });
@@ -216,8 +239,8 @@ function App() {
   }, [legacy, loaded]);
 
   useEffect(() => {
-    latest.current = { score, buildings, won, campaignId };
-  }, [score, buildings, won, campaignId]);
+    latest.current = { score, buildings, won, campaignId, time };
+  }, [score, buildings, won, campaignId, time]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -238,7 +261,26 @@ function App() {
     const current = latest.current;
     const completed = Object.values(current.buildings || {}).reduce((a, b) => a + b, 0);
     const completedCampaign = CAMPAIGNS.find((campaign) => campaign.id === current.campaignId) || CAMPAIGNS[0];
+    const goalEntries = Object.entries(completedCampaign.goal);
+    const progress = goalEntries.reduce((sum, [id, needed]) => sum + Math.min(1, (current.buildings[id] || 0) / needed), 0) / goalEntries.length;
+    const oldStats = legacy.campaignStats[completedCampaign.id] || { attempts: 0, victories: 0, bestProgress: 0, bestTimeRemaining: 0 };
+    const newProgressRecord = progress > oldStats.bestProgress;
+    const newTimeRecord = victory && (current.time || 0) > oldStats.bestTimeRemaining;
     const earned = Math.max(1, Math.floor((current.score || 0) / 45) + Math.floor(completed / 3) + (victory ? completedCampaign.reward : 0));
+    setLastResult({
+      victory,
+      progress,
+      earned,
+      timeRemaining: current.time || 0,
+      newProgressRecord,
+      newTimeRecord,
+      remaining: goalEntries
+        .filter(([id, needed]) => (current.buildings[id] || 0) < needed)
+        .map(([id, needed]) => ({
+          name: BUILDINGS.find((building) => building.id === id)?.name || id,
+          remaining: needed - (current.buildings[id] || 0)
+        }))
+    });
     setLegacy((old) => ({
       ...old,
       laurels: old.laurels + earned,
@@ -247,11 +289,20 @@ function App() {
       victories: old.victories + (victory ? 1 : 0),
       completedCampaigns: victory && !old.completedCampaigns.includes(completedCampaign.id)
         ? [...old.completedCampaigns, completedCampaign.id]
-        : old.completedCampaigns
+        : old.completedCampaigns,
+      campaignStats: {
+        ...old.campaignStats,
+        [completedCampaign.id]: {
+          attempts: (old.campaignStats[completedCampaign.id]?.attempts || 0) + 1,
+          victories: (old.campaignStats[completedCampaign.id]?.victories || 0) + (victory ? 1 : 0),
+          bestProgress: Math.max(old.campaignStats[completedCampaign.id]?.bestProgress || 0, progress),
+          bestTimeRemaining: Math.max(old.campaignStats[completedCampaign.id]?.bestTimeRemaining || 0, victory ? (current.time || 0) : 0)
+        }
+      }
     }));
     if (victory) chime();
     setMessage(victory ? "Rome stands before sunset. The impossible is done." : `Night falls. History remembers what your builders learned. +${earned} laurels.`);
-  }, [chime]);
+  }, [chime, legacy.campaignStats]);
 
   useEffect(() => {
     if (!running) return;
@@ -310,9 +361,32 @@ function App() {
     return () => clearTimeout(timer);
   }, [running, dayEvent, time, activeCampaign.dayLength, activePlan.time, legacy.day, campaignId, chime]);
 
+  useEffect(() => {
+    if (!running || dayPhase === announcedPhase) return;
+    setAnnouncedPhase(dayPhase);
+    const phaseCopy = {
+      morning: { title: "Morning", text: `${activePlan.name}. The day begins with confidence.`, icon: "☼" },
+      afternoon: { title: "The Sun Climbs", text: "The opening is over. Adapt the plan.", icon: "☼" },
+      evening: { title: "Evening Approaches", text: `${remainingObjectives.length} objectives remain before sunset.`, icon: "◒" },
+      final: { title: "Final Light", text: "Fifteen seconds. One last order.", icon: "◐" }
+    }[dayPhase];
+    if (!phaseCopy) return;
+    setToast(phaseCopy);
+    if (dayPhase === "final") chime();
+    const timer = setTimeout(() => setToast(null), dayPhase === "final" ? 3200 : 2200);
+    return () => clearTimeout(timer);
+  }, [running, dayPhase, announcedPhase, remainingObjectives.length, activePlan.name, chime]);
+
+  useEffect(() => {
+    if (!running || time > 10 || time <= 0) return;
+    playTone(time <= 3 ? 620 : 310, 0.055, "square", time <= 3 ? 0.045 : 0.022);
+  }, [running, time, playTone]);
+
   const startDay = () => {
     if (running) return;
     setTime(activeCampaign.dayLength + activePlan.time);
+    setLastResult(null);
+    setAnnouncedPhase("dawn");
     setRunning(true);
     setMessage("Daylight is precious. Put every pair of hands to work.");
     if (legacy.upgrades.foremen > 0 && assigned === 0) {
@@ -376,6 +450,9 @@ function App() {
     setBuildings(emptyBuildings);
     setDayEvent(null);
     setDayModifier({ gather: 1, cost: 1 });
+    setLastPush(null);
+    setAnnouncedPhase("dawn");
+    setLastResult(null);
     setEnded(false);
     setWon(false);
     setMessage(nextCampaign.id !== campaignId ? `${nextCampaign.name} awaits. Rome’s knowledge marches with you.` : "The city is gone. The knowledge remains.");
@@ -404,6 +481,20 @@ function App() {
     setInstallPrompt(null);
   };
 
+  const chooseLastPush = (push) => {
+    if (lastPush || !running || time > 20) return;
+    setLastPush(push.id);
+    if (push.id === "rally") {
+      setDayModifier((old) => ({ ...old, gather: old.gather * 1.45 }));
+    } else if (push.id === "salvage") {
+      setResources((old) => Object.fromEntries(Object.entries(old).map(([key, amount]) => [key, amount + 30])));
+    } else {
+      setDayModifier((old) => ({ ...old, cost: old.cost * 0.85 }));
+    }
+    setMessage(`${push.name}. The builders make one final effort.`);
+    playTone(440, 0.18, "sawtooth", 0.04);
+  };
+
   const selectCampaign = (campaign) => {
     const unlocked = !campaign.unlock || legacy.completedCampaigns.includes(campaign.unlock);
     if (!unlocked || running) return;
@@ -415,13 +506,15 @@ function App() {
     setBuildings(emptyBuildings);
     setDayEvent(null);
     setDayModifier({ gather: 1, cost: 1 });
+    setLastPush(null);
+    setAnnouncedPhase("dawn");
+    setLastResult(null);
     setEnded(false);
     setWon(false);
     setMessage(`${campaign.name}: ${campaign.brief}`);
     setActiveTab("build");
   };
 
-  const currentDayLength = activeCampaign.dayLength + activePlan.time;
   const sunPct = ((currentDayLength - time) / currentDayLength) * 100;
   const cityItems = useMemo(() => {
     const items = [];
@@ -434,7 +527,7 @@ function App() {
   if (!loaded) return <main className="loading">Waking the builders…</main>;
 
   return (
-    <main className="game">
+    <main className={`game phase-${dayPhase}`}>
       <header className="topbar">
         <div className="brand">
           <span className="spqr">SPQR</span>
@@ -448,7 +541,7 @@ function App() {
         </div>
       </header>
 
-      <section className="sky" style={{ "--sun": `${sunPct}%` }}>
+      <section className={`sky ${dayPhase}`} style={{ "--sun": `${sunPct}%` }}>
         <div className="sun" />
         <div className="horizon">
           <div className="city">
@@ -476,6 +569,7 @@ function App() {
           <strong>{activeCampaign.brief}</strong>
           <div><i style={{ width: `${objectiveProgress * 100}%` }} /></div>
         </div>
+        {running && <div className="phaseStamp">{dayPhase === "final" ? "FINAL LIGHT" : dayPhase.toUpperCase()}</div>}
       </section>
 
       <section className="statRow">
@@ -489,6 +583,19 @@ function App() {
       </section>
 
       <div className="message"><span>✦</span>{message}</div>
+
+      {running && time <= 20 && !lastPush && (
+        <section className="lastPush">
+          <div className="lastPushTitle"><small>SUNSET DECISION</small><strong>ONE FINAL ORDER</strong><span>{time}s</span></div>
+          <div>
+            {LAST_PUSHES.map((push) => (
+              <button key={push.id} onClick={() => chooseLastPush(push)}>
+                <span>{push.icon}</span><div><strong>{push.name}</strong><small>{push.desc}</small></div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="workArea">
         <aside className="workers">
@@ -558,10 +665,11 @@ function App() {
                 {CAMPAIGNS.map((campaign) => {
                   const unlocked = !campaign.unlock || legacy.completedCampaigns.includes(campaign.unlock);
                   const complete = legacy.completedCampaigns.includes(campaign.id);
+                  const stats = legacy.campaignStats[campaign.id];
                   return (
                     <button className={`${unlocked ? "unlocked" : ""} ${campaign.id === campaignId ? "current" : ""}`} key={campaign.id} disabled={!unlocked || running} onClick={() => selectCampaign(campaign)}>
                       <span>{complete ? "✓" : unlocked ? campaign.chapter : "×"}</span>
-                      <div><small>CHAPTER {campaign.chapter}</small><strong>{campaign.name}</strong><em>{complete ? "CONQUERED" : unlocked ? campaign.subtitle : "LOCKED"}</em></div>
+                      <div><small>CHAPTER {campaign.chapter}</small><strong>{campaign.name}</strong><em>{complete ? "CONQUERED" : unlocked ? campaign.subtitle : "LOCKED"}</em>{stats && <b>{stats.attempts} days · {Math.round(stats.bestProgress * 100)}% best{stats.bestTimeRemaining ? ` · ${stats.bestTimeRemaining}s left` : ""}</b>}</div>
                     </button>
                   );
                 })}
@@ -612,10 +720,26 @@ function App() {
             <span className="wreath">❧</span>
             <small>{won ? "THE IMPOSSIBLE DAY" : "SUNSET • ATTEMPT COMPLETE"}</small>
             <h2>{won ? `${activeCampaign.name.toUpperCase()} STANDS.` : `${activeCampaign.name.toUpperCase()} WASN’T BUILT TODAY.`}</h2>
-            <p>{won ? `Against time itself, your builders completed the works of ${activeCampaign.name} before nightfall.` : "The roads vanish. The walls return to dust. But skilled hands remember."}</p>
-            <div className="results"><span><small>RENOWN</small><b>{score}</b></span><span><small>BUILDINGS</small><b>{Object.values(buildings).reduce((a, b) => a + b, 0)}</b></span><span><small>LAURELS</small><b>{legacy.laurels}</b></span></div>
+            <p>{won ? `Against time itself, your builders completed the works of ${activeCampaign.name} before nightfall.` : lastResult?.progress >= 0.9 ? "So close that tomorrow already feels different." : "The roads vanish. The walls return to dust. But skilled hands remember."}</p>
+            {lastResult && (
+              <div className={`attemptVerdict ${won ? "victory" : ""}`}>
+                <span>{won ? lastResult.timeRemaining <= 3 ? "BY THE FINAL RAY" : "BUILT BEFORE SUNSET" : lastResult.progress >= 0.9 ? "ALMOST IMPOSSIBLE" : "WHAT STOPPED THE BUILD"}</span>
+                {!won && <strong>{Math.round(lastResult.progress * 100)}% complete</strong>}
+                {won && <strong>{lastResult.timeRemaining}s of daylight remained</strong>}
+                {(lastResult.newProgressRecord || lastResult.newTimeRecord) && <em>NEW PERSONAL RECORD</em>}
+              </div>
+            )}
+            {!won && lastResult?.remaining?.length > 0 && (
+              <div className="failureReport">
+                <small>UNFINISHED BEFORE SUNSET</small>
+                {lastResult.remaining.slice(0, 4).map((objective) => (
+                  <div key={objective.name}><span>{objective.name}</span><strong>{objective.remaining} remaining</strong></div>
+                ))}
+              </div>
+            )}
+            <div className="results"><span><small>RENOWN</small><b>{score}</b></span><span><small>PROGRESS</small><b>{Math.round((lastResult?.progress || objectiveProgress) * 100)}%</b></span><span><small>LAURELS</small><b>+{lastResult?.earned || 0}</b></span></div>
             <button onClick={tomorrow}>{won && campaignId !== "mediterranean" ? "MARCH TO THE NEXT CHAPTER" : won ? "RULE THE EMPIRE" : "TRY AGAIN TOMORROW"} <span>→</span></button>
-            <em>Nothing remains but knowledge.</em>
+            <em>{won ? "History remembers the impossible." : "Now you know what tomorrow requires."}</em>
           </div>
         </div>
       )}

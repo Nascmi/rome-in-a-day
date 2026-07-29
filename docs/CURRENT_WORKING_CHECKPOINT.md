@@ -9,13 +9,24 @@ The game is live, public, installable, and synchronized with GitHub.
 - Live URL: https://rome-in-a-day-nathan.web.app
 - GitHub: https://github.com/Nascmi/rome-in-a-day
 - Firebase project: `rome-in-a-day-nathan`
-- Current gameplay commit before this documentation update: `6e52e7a`
-- Current Firebase gameplay version: `e19b68bcafa5b7f3`
+- Current gameplay commit before the emotional-day release: `6e52e7a`
+- Current Firebase version before the emotional-day release: `e19b68bcafa5b7f3`
 - Branch: `main`
 
 ## Most Recent Gameplay Work
 
-The last release addressed late-game campaigns completing in under ten seconds with a 68-builder save.
+The current pending release makes the clock the principal antagonist:
+
+- Added explicit Morning, Afternoon, Evening, and Final Light phases.
+- Added phase-specific skies, messages, clock urgency, and final ticks.
+- Added a one-time final order at 20 seconds.
+- Added campaign-specific attempts, victories, progress records, and completion-time records.
+- Added a sunset diagnosis listing unfinished objectives.
+- Added close-finish and personal-record recognition.
+- Added `DESIGN_GUARDRAILS.md`.
+- Updated the PWA cache to `rome-in-a-day-v5`.
+
+The preceding live release addressed late-game campaigns completing in under ten seconds with a 68-builder save.
 
 Changes:
 
@@ -107,4 +118,3 @@ At the start of the next session:
 ## Important Regression
 
 Campaign victory recognition and delayed completion must remain separate React effects. A previous combined effect canceled its own timer when `won` changed and caused Italia to continue until sunset after every objective had been completed.
-

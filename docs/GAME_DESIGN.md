@@ -39,9 +39,23 @@ Later campaigns are not larger copies of Rome. They have different goals, major 
 5. Tap resource panels for supplemental gathering.
 6. Construct roads, infrastructure, civic buildings, and campaign projects.
 7. React to a midday event.
-8. Complete every campaign objective before sunset or fail productively.
-9. Spend laurels on permanent upgrades.
-10. Begin another attempt.
+8. Read the evening pressure and commit to the remaining objectives.
+9. Choose one final order near sunset.
+10. Complete every campaign objective before sunset or fail productively.
+11. Read the sunset diagnosis and personal-record result.
+12. Spend laurels on permanent upgrades.
+13. Begin another attempt.
+
+## Emotional Arc of the Day
+
+The clock is the principal antagonist. Each attempt has four presented acts:
+
+- Morning: the selected plan begins with confidence.
+- Afternoon: the opening is over and the player adapts.
+- Evening: the remaining objective count becomes explicit.
+- Final Light: the sky, clock, sound, and message system become urgent.
+
+The final ten seconds produce audible ticks. The last three ticks use a higher warning tone.
 
 ## Campaigns
 
@@ -122,6 +136,16 @@ One deterministic event occurs at approximately 55% of the day:
 
 The event is selected from the current attempt number and campaign chapter. It therefore varies across attempts without requiring random save data.
 
+## Final Orders
+
+At 20 seconds remaining, the player may issue exactly one final order:
+
+- Rally the Crews: gathering is 45% faster until sunset.
+- Strip the Scaffolds: immediately recover 30 of every resource.
+- Simplify the Plans: construction costs are 15% lower until sunset.
+
+The decision does not pause the clock. It is the player’s final commitment, not a free planning break.
+
 ## Permanent Progression
 
 Laurels are awarded at sunset from:
@@ -167,7 +191,15 @@ A campaign completes when every entry in its objective map reaches the required 
 
 At ordinary sunset, the physical run resets while the legacy state persists.
 
+The sunset report explains:
+
+- Completion percentage
+- Up to four unfinished objective counts
+- Laurels earned
+- Whether the attempt set a progress record
+- Whether a victory set a fastest-completion record
+- Whether a victory occurred in the final three seconds
+
 ## Current End State
 
 Completing Mare Nostrum currently displays “Rule the Empire” and begins another attempt. A larger geographic empire layer is a future system, not yet implemented.
-

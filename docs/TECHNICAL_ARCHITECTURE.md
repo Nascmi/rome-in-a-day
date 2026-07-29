@@ -48,6 +48,7 @@ Persistent data includes:
 - Total victories
 - Earned achievements
 - Completed campaigns
+- Per-campaign attempts, victories, best progress, and best remaining time
 - Permanent upgrade levels
 
 ### Run state
@@ -103,6 +104,17 @@ The final cost combines:
 
 Every final resource value is rounded upward and cannot be lower than one.
 
+### Day phases
+
+The emotional phase is derived from elapsed campaign time:
+
+- Morning: before 45% elapsed
+- Afternoon: 45% to 78% elapsed
+- Evening: after 78% elapsed
+- Final Light: 15 seconds or less
+
+At 20 seconds, the final-order overlay becomes eligible. A selected order mutates the temporary run modifier or resources and cannot be selected twice.
+
 ### Victory
 
 `campaignComplete` compares the current `buildings` map to the active campaign’s `goal` map.
@@ -138,7 +150,7 @@ Browsers require user interaction before audio can begin. The interface therefor
 3. Fall back to the cached resource when offline.
 4. Fall back to `/` when no exact cached match exists.
 
-The current cache name is `rome-in-a-day-v4`. Increment this value when a release requires old offline assets to be discarded.
+The current cache name is `rome-in-a-day-v5`. Increment this value when a release requires old offline assets to be discarded.
 
 ## Responsive Design
 
@@ -179,4 +191,3 @@ game/components/
 ```
 
 The refactor should preserve the existing save key and migration behavior.
-

@@ -53,6 +53,7 @@ The production build is statically exported to `out/`.
 ## Documentation
 
 - [Game Design](docs/GAME_DESIGN.md)
+- [Design Guardrails](docs/DESIGN_GUARDRAILS.md)
 - [Technical Architecture](docs/TECHNICAL_ARCHITECTURE.md)
 - [Save Data](docs/SAVE_DATA.md)
 - [Deployment and Release](docs/DEPLOYMENT.md)
@@ -62,4 +63,3 @@ The production build is statically exported to `out/`.
 ## Project Status
 
 The game is a functioning public prototype with a complete three-chapter campaign loop. The next development priority is improving moment-to-moment construction depth, balance telemetry, run-state recovery, and campaign-specific presentation.
-

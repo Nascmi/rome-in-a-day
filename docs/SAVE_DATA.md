@@ -23,6 +23,7 @@ The value is JSON containing only permanent legacy progress.
   "victories": 0,
   "achievements": [],
   "completedCampaigns": [],
+  "campaignStats": {},
   "upgrades": {
     "hands": 0,
     "rations": 0,
@@ -45,6 +46,7 @@ The value is JSON containing only permanent legacy progress.
 | `victories` | Total successful campaign completions |
 | `achievements` | Array of earned achievement IDs |
 | `completedCampaigns` | Array of completed campaign IDs |
+| `campaignStats` | Attempts, victories, best progress, and best remaining time by campaign |
 | `upgrades` | Permanent upgrade levels by ID |
 
 ## Migration Behavior
@@ -80,6 +82,7 @@ When changing persistence:
 - Selected plan
 - Current midday event
 - Audio preferences
+- Final-order selection
 
 ## Recommended Next Save Revision
 
@@ -98,4 +101,3 @@ Add a versioned envelope:
 ```
 
 A resumable `run` should include a timestamp so elapsed real time can be reconciled safely rather than freezing or duplicating production.
-
