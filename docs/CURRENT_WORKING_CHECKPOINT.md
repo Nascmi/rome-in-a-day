@@ -9,13 +9,13 @@ The game is live, public, installable, and synchronized with GitHub.
 - Live URL: https://rome-in-a-day-nathan.web.app
 - GitHub: https://github.com/Nascmi/rome-in-a-day
 - Firebase project: `rome-in-a-day-nathan`
-- Current gameplay commit: `2828f3a`
-- Current Firebase version: `02cf5e154dfadda3`
+- Current gameplay commit: `e51e0e9`
+- Current Firebase version: `f2c0583dd424671a`
 - Branch: `main`
 
 ## Most Recent Gameplay Work
 
-The current pending release converts instant purchases into timed construction:
+The current live release converts instant purchases into timed construction:
 
 - Added a four-project construction ledger.
 - Added dedicated construction-worker assignment.
