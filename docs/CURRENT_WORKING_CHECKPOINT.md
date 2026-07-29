@@ -19,6 +19,19 @@ This is the safe return point for the next session. The production build passed,
 
 The next implementation sequence is recorded in [`NEXT_STEPS.md`](NEXT_STEPS.md). Begin with the automated progression and campaign regression tests before adding the next gameplay system.
 
+## July 29 Campaign-Depth Milestone
+
+The live release at commit `f259cfc` adds worker professions, campaign-specific pressure, meaningful partial-completion percentages, a sticky objective checklist, local run history, and reliable auto-dismiss notices.
+
+The current local follow-up adds:
+
+- Contextual guidance for idle crews, professions, construction, and campaign pressure.
+- Campaign-specific sunset lessons.
+- Distinct Rome, Italia, and Mare Nostrum landscape treatments.
+- Regression coverage for sunset diagnosis.
+
+Before the next release, run the automated suite, production build, and responsive visual review, then increment the PWA cache.
+
 ## Most Recent Gameplay Work
 
 The current release rebalances permanent Legacy progression:

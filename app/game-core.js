@@ -164,6 +164,24 @@ export function campaignEffects(campaignId, buildings, totalWorkers, resources) 
   };
 }
 
+export function diagnoseFailure({ campaignId, pressure, resources, constructionWorkers, professions, constructionQueue }) {
+  const insights = [];
+  if ((pressure?.efficiency || 1) < 1) {
+    insights.push(pressure.detail);
+  }
+  if (campaignId === "italia" && (resources?.food || 0) <= 0) {
+    insights.push("Food ran out; keep gatherers on food or finish roads earlier to strengthen delivery.");
+  }
+  if ((constructionQueue?.length || 0) > 0 && (constructionWorkers || 0) === 0) {
+    insights.push("Projects were ordered without a construction crew.");
+  }
+  const trained = Object.values(professions || {}).reduce((sum, count) => sum + count, 0);
+  if (trained === 0) {
+    insights.push("No professions were assigned; specialize part of the workforce for the chapter’s bottleneck.");
+  }
+  return insights.slice(0, 3);
+}
+
 export function restoreRunState(run, campaign, plan, emptyBuildings) {
   return {
     time: Math.max(1, Math.min(

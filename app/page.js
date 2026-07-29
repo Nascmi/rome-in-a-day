@@ -6,6 +6,7 @@ import {
   campaignProgress,
   campaignEffects,
   createSaveEnvelope,
+  diagnoseFailure,
   EMPTY_PROFESSIONS,
   isCampaignComplete,
   LEGACY_SAVE_KEY,
@@ -181,6 +182,19 @@ function App() {
   const currentDayLength = activeCampaign.dayLength + activePlan.time;
   const elapsedRatio = 1 - (time / currentDayLength);
   const dayPhase = !running ? "dawn" : time <= 15 ? "final" : elapsedRatio >= 0.78 ? "evening" : elapsedRatio >= 0.45 ? "afternoon" : "morning";
+  const guidance = !running && !ended
+    ? { title: "Plan the opening", text: "Choose a pre-dawn order, then assign crews as soon as daylight begins." }
+    : running && assigned === 0
+      ? { title: "Put Rome to work", text: "Assign builders to materials and construction. Idle hands produce nothing." }
+      : running && professionBonus.trained === 0
+        ? { title: "Specialize the crews", text: "Professions do not remove job assignments; they sharpen the work builders already do." }
+        : running && campaignBonus.efficiency < 1
+          ? { title: `${campaignBonus.title} is strained`, text: campaignBonus.detail }
+          : running && constructionQueue.length > 0 && constructionWorkers === 0
+            ? { title: "Plans need builders", text: "Ordered projects only advance when workers are assigned to Construction." }
+            : running && constructionQueue.length === 0
+              ? { title: "Choose the next foundation", text: "Gather its materials, order the project, then protect enough daylight to finish it." }
+              : null;
 
   const playTone = useCallback((frequency, duration = 0.12, type = "triangle", volume = 0.035) => {
     if (!soundOn || typeof window === "undefined") return;
@@ -276,8 +290,8 @@ function App() {
   }, [loaded, legacy, soundOn, musicOn, running, pendingRun, campaignId, planId, time, resources, workers, constructionWorkers, professions, constructionQueue, buildings, dayEvent, dayModifier, lastPush, announcedPhase]);
 
   useEffect(() => {
-    latest.current = { score, buildings, won, campaignId, time, constructionQueue, professions, totalWorkers };
-  }, [score, buildings, won, campaignId, time, constructionQueue, professions, totalWorkers]);
+    latest.current = { score, buildings, won, campaignId, time, constructionQueue, professions, totalWorkers, resources, constructionWorkers, pressure: campaignBonus };
+  }, [score, buildings, won, campaignId, time, constructionQueue, professions, totalWorkers, resources, constructionWorkers, campaignBonus]);
 
   useEffect(() => {
     constructionQueueRef.current = constructionQueue;
@@ -312,6 +326,14 @@ function App() {
     const newProgressRecord = progress > oldStats.bestProgress;
     const newTimeRecord = victory && (current.time || 0) > oldStats.bestTimeRemaining;
     const earned = Math.max(1, Math.floor((current.score || 0) / 45) + Math.floor(completed / 3) + (victory ? completedCampaign.reward : 0));
+    const insights = victory ? [] : diagnoseFailure({
+      campaignId: completedCampaign.id,
+      pressure: current.pressure,
+      resources: current.resources,
+      constructionWorkers: current.constructionWorkers,
+      professions: current.professions,
+      constructionQueue: current.constructionQueue
+    });
     setLastResult({
       victory,
       progress,
@@ -319,6 +341,7 @@ function App() {
       timeRemaining: current.time || 0,
       newProgressRecord,
       newTimeRecord,
+      insights,
       underway: (current.constructionQueue || []).map((project) => ({
         name: project.name,
         progress: Math.floor(project.progress)
@@ -728,7 +751,7 @@ function App() {
   if (!loaded) return <main className="loading">Waking the builders…</main>;
 
   return (
-    <main className={`game phase-${dayPhase}`}>
+    <main className={`game phase-${dayPhase} campaign-${campaignId}`}>
       <header className="topbar">
         <div className="brand">
           <span className="spqr">SPQR</span>
@@ -839,6 +862,7 @@ function App() {
       <section className="workArea">
         <aside className="workers">
           <div className="panelTitle"><span>WORKFORCE</span><strong>{idle} idle / {totalWorkers}</strong></div>
+          {guidance && <div className="guidance"><span>?</span><div><strong>{guidance.title}</strong><small>{guidance.text}</small></div></div>}
           {totalWorkers >= 32 && <div className="logisticsNote"><span>⚑</span><div><strong>LEGION LOGISTICS</strong><small>Large crews stay powerful, but each additional worker adds less output.</small></div></div>}
           <div className="workerArt">{Array.from({ length: Math.min(totalWorkers, 16) }).map((_, i) => <i key={i}>♟</i>)}</div>
           {JOBS.map((job) => (
@@ -1058,6 +1082,12 @@ function App() {
                 {lastResult.remaining.slice(0, 4).map((objective) => (
                   <div key={objective.name}><span>{objective.name}</span><strong>{objective.remaining} remaining</strong></div>
                 ))}
+              </div>
+            )}
+            {!won && lastResult?.insights?.length > 0 && (
+              <div className="sunsetLessons">
+                <small>TOMORROW’S LESSONS</small>
+                {lastResult.insights.map((insight) => <p key={insight}>{insight}</p>)}
               </div>
             )}
             <div className="results"><span><small>RENOWN</small><b>{score}</b></span><span><small>PROGRESS</small><b>{Math.round((lastResult?.progress || objectiveProgress) * 100)}%</b></span><span><small>LAURELS</small><b>+{lastResult?.earned || 0}</b></span></div>

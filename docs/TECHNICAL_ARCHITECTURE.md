@@ -16,6 +16,8 @@ There is no backend, database, authentication system, analytics service, or paid
 
 ```text
 app/
+  game-core.js             Pure persistence, progression, pressure, and diagnosis logic
+  game-core.test.js        Automated regression coverage
   globals.css              Complete visual system and responsive layout
   layout.js                Metadata, PWA declarations, and root layout
   page.js                  Game data, state, simulation, progression, and UI
@@ -50,6 +52,7 @@ Persistent data includes:
 - Completed campaigns
 - Per-campaign attempts, victories, best progress, and best remaining time
 - Permanent upgrade levels
+- Recent local run summaries used for balance feedback
 
 ### Run state
 
@@ -62,6 +65,7 @@ Run state exists in React memory and is mirrored into the optional `run` snapsho
 - Resources
 - Worker assignments
 - Construction-worker assignment
+- Temporary profession assignments
 - Construction queue, progress, and active slots
 - Buildings constructed this attempt
 - Current event and temporary modifiers
@@ -91,6 +95,8 @@ The gathering multiplier combines:
 - Forum district bonus
 - Selected pre-dawn plan
 - Active midday event
+- Profession delivery and resource bonuses
+- Campaign-specific housing, supply, or port-throughput effects
 
 ### Construction cost
 
@@ -123,6 +129,8 @@ Construction speed combines:
 - A baseline of `0.35`
 - Effective assigned construction crew multiplied by `0.22`
 - Temporary construction modifiers
+- Mason and Engineer profession bonuses
+- Campaign pressure efficiency
 
 When progress reaches 100%, the project is removed from the queue and its completed building count increments. Campaign victory only reads completed counts.
 

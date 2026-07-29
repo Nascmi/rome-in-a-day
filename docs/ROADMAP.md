@@ -6,6 +6,8 @@ Does each new system make tomorrow’s attempt feel strategically and visibly di
 
 ## Phase 1 — Reliability
 
+Status: complete.
+
 - Save and resume an active run
 - Persist sound, music, selected campaign, and selected plan
 - Add explicit save-version migrations
@@ -14,6 +16,8 @@ Does each new system make tomorrow’s attempt feel strategically and visibly di
 - Add regression coverage for victory transitions
 
 ## Phase 2 — Construction Depth
+
+Implemented: timed construction, queues, professions, campaign pressure, and supply tradeoffs.
 
 - Introduce building prerequisites
 - Add construction queues and build time
@@ -24,6 +28,8 @@ Does each new system make tomorrow’s attempt feel strategically and visibly di
 - Add repair, supply, or maintenance tradeoffs
 
 ## Phase 3 — Chapter Identity
+
+In progress: every chapter now has a distinct pressure model and landscape treatment.
 
 ### Rome
 
@@ -57,6 +63,8 @@ Does each new system make tomorrow’s attempt feel strategically and visibly di
 
 ## Phase 5 — Presentation
 
+In progress: chapter landscapes, sticky objectives, contextual guidance, and expanded sunset diagnosis are implemented.
+
 - Purpose-built worker sprite animation
 - Chapter-specific landscapes and skylines
 - More construction stages
@@ -66,6 +74,8 @@ Does each new system make tomorrow’s attempt feel strategically and visibly di
 - Accessibility review for color, sound, motion, and touch targets
 
 ## Phase 6 — Product Readiness
+
+In progress: automated regression tests, local run history, and first-session guidance are implemented without external analytics.
 
 - Tutorial and first-session guidance
 - Local statistics and balance dashboard
@@ -83,4 +93,3 @@ Does each new system make tomorrow’s attempt feel strategically and visibly di
 - Multiplayer
 - Accounts before cross-device saves are justified
 - A large content expansion before the current three chapters are balanced
-

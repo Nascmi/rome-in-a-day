@@ -4,6 +4,7 @@ import {
   campaignProgress,
   campaignEffects,
   createSaveEnvelope,
+  diagnoseFailure,
   isCampaignComplete,
   LEGACY_SAVE_KEY,
   loadSave,
@@ -225,6 +226,24 @@ describe("campaign pressure", () => {
     expect(overloaded.efficiency).toBeLessThan(1);
     expect(supplied.efficiency).toBe(1);
     expect(supplied.delivery).toBeGreaterThan(overloaded.delivery);
+  });
+});
+
+describe("sunset diagnosis", () => {
+  it("explains pressure, empty food, idle construction, and missing professions", () => {
+    const insights = diagnoseFailure({
+      campaignId: "italia",
+      pressure: { efficiency: 0.72, detail: "Hungry crews work at reduced strength." },
+      resources: { food: 0 },
+      constructionWorkers: 0,
+      professions: { laborers: 0, masons: 0, haulers: 0, engineers: 0 },
+      constructionQueue: [{ buildingId: "forum", progress: 50 }]
+    });
+
+    expect(insights).toHaveLength(3);
+    expect(insights.join(" ")).toContain("Hungry");
+    expect(insights.join(" ")).toContain("Food ran out");
+    expect(insights.join(" ")).toContain("construction crew");
   });
 });
 
