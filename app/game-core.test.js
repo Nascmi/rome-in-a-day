@@ -5,6 +5,7 @@ import {
   campaignEffects,
   CITY_STAGES,
   cityMasteryEffects,
+  constructionSchedule,
   createSaveEnvelope,
   conquerProvince,
   diagnoseFailure,
@@ -16,10 +17,15 @@ import {
   professionEffects,
   normalizeEmpire,
   normalizeCity,
+  moveQueueProject,
+  masteryGrade,
+  objectiveShortfall,
   provinceEffects,
   resetSave,
   restoreRunState,
   SAVE_KEY,
+  salvageProject,
+  sunsetTimeline,
   upgradeCost,
   workforceCoordination,
   workforcePreset
@@ -319,6 +325,62 @@ describe("workforce coordination", () => {
     expect(workforcePreset(44, "gather").constructionWorkers).toBe(0);
     expect(workforcePreset(44, "balanced").constructionWorkers).toBe(11);
     expect(workforcePreset(44, "build").constructionWorkers).toBe(22);
+  });
+});
+
+describe("construction command", () => {
+  it("schedules queued projects across the available build lanes", () => {
+    const projects = [
+      { seconds: 10, progress: 50 },
+      { seconds: 12, progress: 0 },
+      { seconds: 8, progress: 0 }
+    ];
+    expect(constructionSchedule(projects, 2, [1, 1, 1])).toEqual([
+      { lane: 0, startsIn: 0, duration: 5, finishesIn: 5 },
+      { lane: 1, startsIn: 0, duration: 12, finishesIn: 12 },
+      { lane: 0, startsIn: 5, duration: 8, finishesIn: 13 }
+    ]);
+  });
+
+  it("salvages only the unfinished portion of recorded project costs", () => {
+    expect(salvageProject({
+      progress: 50,
+      paidCost: { wood: 100, stone: 50 }
+    })).toEqual({ wood: 35, stone: 17 });
+    expect(salvageProject({ progress: 0 })).toEqual({});
+  });
+
+  it("reorders projects without mutating the original queue", () => {
+    const queue = [{ queueId: "a" }, { queueId: "b" }, { queueId: "c" }];
+    expect(moveQueueProject(queue, 2, -1).map((project) => project.queueId)).toEqual(["a", "c", "b"]);
+    expect(queue.map((project) => project.queueId)).toEqual(["a", "b", "c"]);
+    expect(moveQueueProject(queue, 0, -1)).toBe(queue);
+  });
+});
+
+describe("day review intelligence", () => {
+  it("grades successful days by the share of daylight remaining", () => {
+    expect(masteryGrade(30, 100, true).id).toBe("laurel");
+    expect(masteryGrade(15, 100, true).id).toBe("gold");
+    expect(masteryGrade(5, 100, true).id).toBe("silver");
+    expect(masteryGrade(1, 100, true).id).toBe("bronze");
+    expect(masteryGrade(50, 100, false)).toBeNull();
+  });
+
+  it("does not count completed or queued objective work as a shortfall", () => {
+    expect(objectiveShortfall(
+      { road: 3, hut: 2 },
+      { road: 2, hut: 0 },
+      [{ buildingId: "road" }, { buildingId: "hut" }]
+    )).toEqual({ hut: 1 });
+  });
+
+  it("summarizes the largest actionable losses at sunset", () => {
+    expect(sunsetTimeline({ idleSeconds: 8, stalledSeconds: 4, unfinished: 2, surplus: 120 })).toEqual([
+      "8s passed with idle hands.",
+      "Construction stood without builders for 4s.",
+      "2 objective projects never reached the ledger."
+    ]);
   });
 });
 

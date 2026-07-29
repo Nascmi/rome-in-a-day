@@ -80,6 +80,31 @@ The second polish pass adds emotional escalation and payoff:
 
 ## Most Recent Gameplay Work
 
+## Local Construction Command Pass
+
+The current uncommitted strategy pass makes the construction ledger an active planning tool:
+
+- Each project reports its build slot, projected start, and projected finish using the live crew.
+- Queue arrows let the player reprioritize work without losing partial progress.
+- Cancellation recovers 70% of the resources paid for the unfinished portion of a project.
+- A crew forecast shows the real time saved by adding one idle builder.
+- Trained professions now report whether their bonus is actively being used or waiting for the right assignment.
+- Construction scheduling, salvage, and immutable queue movement have regression coverage.
+
+## Local Command and Character Milestone
+
+The current local follow-up completes the broader strategy-and-feedback list:
+
+- Whole-objective finish forecasts and critical-path project highlighting.
+- Objective material protection that prevents unrelated purchases from consuming a chosen building's stockpile.
+- Smarter guidance for late plans and nonessential projects occupying active slots.
+- Final Light visual triage that recedes irrelevant building choices.
+- Three two-choice midday dilemmas with persistent, resume-safe consequences.
+- District command identities and contextual foreman commentary.
+- Bronze, Silver, Gold, and Laurel victory mastery.
+- A compact failure timeline for idle hands, stalled construction, unordered objective work, and unused surplus.
+- Regression tests for grading, objective shortfalls, and sunset timeline selection.
+
 The current release rebalances permanent Legacy progression:
 
 - Capped all repeatable Legacy upgrades at level 10.

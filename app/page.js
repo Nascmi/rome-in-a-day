@@ -7,6 +7,7 @@ import {
   campaignProgress,
   campaignEffects,
   cityMasteryEffects,
+  constructionSchedule,
   createSaveEnvelope,
   conquerProvince,
   diagnoseFailure,
@@ -16,11 +17,16 @@ import {
   isCampaignComplete,
   LEGACY_SAVE_KEY,
   loadSave,
+  masteryGrade,
+  moveQueueProject,
+  objectiveShortfall,
   PROVINCES,
   provinceEffects,
   resetSave,
   restoreRunState,
   SAVE_KEY,
+  salvageProject,
+  sunsetTimeline,
   professionEffects,
   upgradeCost,
   workforceCoordination,
@@ -39,6 +45,49 @@ const DAY_EVENTS = [
   { id: "supply", title: "Supply Caravan", text: "A caravan arrives with 18 of every material.", icon: "⊞" },
   { id: "guild", title: "Guild Inspiration", text: "Gathering is 25% faster for the rest of the day.", icon: "⚒" },
   { id: "engineer", title: "A Brilliant Engineer", text: "Construction costs 15% less for the rest of the day.", icon: "△" }
+];
+
+const DISTRICT_COMMAND = {
+  settlement: { name: "Foundations", detail: "Roads and workshops define the opening; stone delays compound quickly." },
+  market: { name: "Trade", detail: "The market rewards a balanced stockpile instead of one enormous material surplus." },
+  housing: { name: "Density", detail: "Timber and clay must keep pace while housing fills the ledger." },
+  civic: { name: "Public Life", detail: "The Forum makes stone logistics and queue timing decisive." },
+  water: { name: "Water & Faith", detail: "Masons earn their keep on aqueducts and temples." },
+  senate: { name: "Government", detail: "Protect resources for the Senate House before lesser work consumes them." },
+  eternal: { name: "The Whole City", detail: "Every district competes for daylight; only critical work matters at dusk." }
+};
+
+const MIDDAY_DILEMMAS = [
+  {
+    id: "draft",
+    title: "The Foreman Demands Reinforcements",
+    text: "Pull citizens from supply work, or keep the careful plan?",
+    icon: "⚑",
+    choices: [
+      { id: "rush", name: "Draft the Crews", detail: "+35% construction, -15% gathering.", modifier: { construction: 1.35, gather: 0.85 } },
+      { id: "steady", name: "Hold Formation", detail: "+12 of every material.", resources: 12 }
+    ]
+  },
+  {
+    id: "stone",
+    title: "A Mason Challenges the Plans",
+    text: "Simplify every foundation, or insist on monumental work?",
+    icon: "◆",
+    choices: [
+      { id: "simplify", name: "Simplify Foundations", detail: "Future projects cost 15% less.", modifier: { cost: 0.85 } },
+      { id: "monument", name: "Build for the Ages", detail: "+30% construction, but lose 18 stone.", modifier: { construction: 1.3 }, spend: { stone: 18 } }
+    ]
+  },
+  {
+    id: "market",
+    title: "Merchants Crowd the Forum",
+    text: "Trade the day’s food reserve, or turn them away?",
+    icon: "◇",
+    choices: [
+      { id: "trade", name: "Open the Stalls", detail: "Trade 15 food for 25 timber, stone, and clay.", spend: { food: 15 }, gain: { wood: 25, stone: 25, clay: 25 } },
+      { id: "order", name: "Protect the Stores", detail: "+20% gathering through sunset.", modifier: { gather: 1.2 } }
+    ]
+  }
 ];
 
 const LAST_PUSHES = [
@@ -143,7 +192,9 @@ function App() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [toast, setToast] = useState(null);
   const [dayEvent, setDayEvent] = useState(null);
+  const [middayDilemma, setMiddayDilemma] = useState(null);
   const [dayModifier, setDayModifier] = useState({ gather: 1, cost: 1, construction: 1 });
+  const [reservedBuildingId, setReservedBuildingId] = useState(null);
   const [lastPush, setLastPush] = useState(null);
   const [announcedPhase, setAnnouncedPhase] = useState("dawn");
   const [lastResult, setLastResult] = useState(null);
@@ -153,12 +204,17 @@ function App() {
   const audioContext = useRef(null);
   const musicTimer = useRef(null);
   const constructionQueueRef = useRef([]);
+  const runStats = useRef({ idleSeconds: 0, stalledSeconds: 0 });
 
   const baseCampaign = CAMPAIGNS.find((campaign) => campaign.id === campaignId) || CAMPAIGNS[0];
   const activeCityStage = CITY_STAGES.find((stage) => stage.id === legacy.city?.activeStage) || CITY_STAGES[0];
   const activeCampaign = campaignId === "rome"
     ? { ...baseCampaign, dayLength: activeCityStage.dayLength, reward: activeCityStage.reward, goal: activeCityStage.goal, brief: activeCityStage.brief }
     : baseCampaign;
+  const districtCommand = campaignId === "rome" ? DISTRICT_COMMAND[activeCityStage.id] : {
+    name: campaignId === "italia" ? "Peninsula Logistics" : "Imperial Supply",
+    detail: campaignId === "italia" ? "Food and roads determine whether distant crews remain effective." : "Ports, major works, and overloaded supply lines decide the campaign."
+  };
   const activePlan = PLANS.find((plan) => plan.id === planId) || PLANS[0];
   const activeProvince = campaignId === "mediterranean"
     ? PROVINCES.find((province) => province.id === legacy.empire?.activeProvince) || null
@@ -183,7 +239,7 @@ function App() {
   const gatherRate = (1 + legacy.upgrades.hands * 0.15) * roadBonus * workshopBonus * forumBonus * activePlan.gather * dayModifier.gather * professionBonus.delivery * campaignBonus.delivery * campaignBonus.efficiency * provinceBonus.gather * cityMastery.gather * cityMastery.delivery * coordinationScale;
   const resourceGatherRate = (jobId) => gatherRate * (jobId === "wood" || jobId === "clay" ? professionBonus.laborerGather : 1);
   const effectiveCrew = (count) => count <= 8 ? count : 8 + Math.pow(count - 8, professionBonus.coordinationExponent);
-  const constructionSpeed = (project) => {
+  const constructionSpeed = (project, crew = constructionWorkers, totalAssigned = assigned) => {
     const building = project ? BUILDINGS.find((item) => item.id === project.buildingId) : null;
     const masonryBonus = building?.cost.stone ? professionBonus.masonry : 1;
     const engineeringBonus = building?.points >= 600 ? professionBonus.engineering : 1;
@@ -194,9 +250,14 @@ function App() {
         : building?.cost.stone
           ? cityMastery.stoneSpeed
           : 1;
-    return (0.35 + effectiveCrew(constructionWorkers) * 0.22) * dayModifier.construction * masonryBonus * engineeringBonus * campaignBonus.efficiency * coordinationScale / masterySpeed;
+    return (0.35 + effectiveCrew(crew) * 0.22) * dayModifier.construction * masonryBonus * engineeringBonus * campaignBonus.efficiency * workforceCoordination(totalAssigned) / masterySpeed;
   };
   const buildSlots = legacy.upgrades.architects >= 3 || professionBonus.engineerSlot ? 2 : 1;
+  const constructionTimings = constructionSchedule(
+    constructionQueue,
+    buildSlots,
+    constructionQueue.map((project) => constructionSpeed(project))
+  );
   const campaignComplete = isCampaignComplete(activeCampaign, buildings);
   const objectiveProgress = campaignProgress(activeCampaign, buildings, constructionQueue);
   const remainingObjectives = Object.entries(activeCampaign.goal)
@@ -314,6 +375,8 @@ function App() {
         constructionQueue,
         buildings,
         dayEvent,
+        middayDilemmaId: middayDilemma?.id || null,
+        reservedBuildingId,
         dayModifier,
         lastPush,
         announcedPhase
@@ -326,7 +389,7 @@ function App() {
       })));
     }, 100);
     return () => clearTimeout(timer);
-  }, [loaded, legacy, soundOn, musicOn, running, pendingRun, campaignId, planId, time, resources, workers, constructionWorkers, professions, constructionQueue, buildings, dayEvent, dayModifier, lastPush, announcedPhase]);
+  }, [loaded, legacy, soundOn, musicOn, running, pendingRun, campaignId, planId, time, resources, workers, constructionWorkers, professions, constructionQueue, buildings, dayEvent, middayDilemma, reservedBuildingId, dayModifier, lastPush, announcedPhase]);
 
   useEffect(() => {
     latest.current = { score, buildings, won, campaignId, time, constructionQueue, professions, totalWorkers, resources, constructionWorkers, pressure: campaignBonus, activeProvince, campaign: activeCampaign, cityStage: campaignId === "rome" ? activeCityStage : null };
@@ -366,6 +429,11 @@ function App() {
     const newProgressRecord = progress > oldStats.bestProgress;
     const newTimeRecord = victory && (current.time || 0) > oldStats.bestTimeRemaining;
     const earned = Math.max(1, Math.floor((current.score || 0) / 45) + Math.floor(completed / 3) + (victory ? completedCampaign.reward : 0));
+    const resultDayLength = current.cityStage?.dayLength || completedCampaign.dayLength;
+    const grade = masteryGrade(current.time || 0, resultDayLength, victory);
+    const unfinishedCount = goalEntries.reduce((sum, [id, needed]) => sum + Math.max(0, needed - (current.buildings[id] || 0) - (current.constructionQueue || []).filter((project) => project.buildingId === id).length), 0);
+    const surplus = Object.values(current.resources || {}).reduce((sum, amount) => sum + Math.max(0, Number(amount) || 0), 0);
+    const timeline = victory ? [] : sunsetTimeline({ ...runStats.current, surplus, unfinished: unfinishedCount });
     const insights = victory ? [] : diagnoseFailure({
       campaignId: completedCampaign.id,
       pressure: current.pressure,
@@ -385,6 +453,8 @@ function App() {
       influenceEarned: victory ? (current.activeProvince?.reward || 0) : 0,
       cityStage: current.cityStage || null,
       cityFinal,
+      grade,
+      timeline,
       unlocksNextCampaign: victory && (current.campaignId !== "rome" || cityFinal),
       insights,
       underway: (current.constructionQueue || []).map((project) => ({
@@ -452,8 +522,10 @@ function App() {
   }, [chime, triumph, legacy.campaignStats]);
 
   useEffect(() => {
-    if (!running) return;
+    if (!running || middayDilemma) return;
     const timer = setInterval(() => {
+      if (idle > 0) runStats.current.idleSeconds += 1;
+      if ((latest.current.constructionQueue?.length || 0) > 0 && latest.current.constructionWorkers === 0) runStats.current.stalledSeconds += 1;
       setTime((old) => {
         if (old <= 1) {
           finishDay(false);
@@ -463,10 +535,10 @@ function App() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [running, finishDay]);
+  }, [running, middayDilemma, finishDay, idle, totalWorkers]);
 
   useEffect(() => {
-    if (!running) return;
+    if (!running || middayDilemma) return;
     const gather = setInterval(() => {
       setResources((old) => {
         const next = { ...old };
@@ -478,10 +550,10 @@ function App() {
       });
     }, 500);
     return () => clearInterval(gather);
-  }, [running, workers, gatherRate, professionBonus.laborerGather, professionBonus.coordinationExponent, campaignBonus.foodDrain]);
+  }, [running, middayDilemma, workers, gatherRate, professionBonus.laborerGather, professionBonus.coordinationExponent, campaignBonus.foodDrain]);
 
   useEffect(() => {
-    if (!running || constructionQueue.length === 0) return;
+    if (!running || middayDilemma || constructionQueue.length === 0) return;
     const construction = setInterval(() => {
       const oldQueue = constructionQueueRef.current;
       const updated = oldQueue.map((project, index) => index < buildSlots
@@ -512,7 +584,7 @@ function App() {
       }
     }, 250);
     return () => clearInterval(construction);
-  }, [running, constructionQueue.length, constructionWorkers, professions, dayModifier.construction, campaignBonus.efficiency, buildSlots, playTone]);
+  }, [running, middayDilemma, constructionQueue.length, constructionWorkers, assigned, professions, dayModifier.construction, campaignBonus.efficiency, buildSlots, playTone]);
 
   useEffect(() => {
     if (!running || !campaignComplete || won) return;
@@ -530,18 +602,11 @@ function App() {
 
   useEffect(() => {
     if (!running || dayEvent || time !== Math.floor(currentDayLength * 0.55)) return;
-    const event = DAY_EVENTS[(legacy.day + CAMPAIGNS.findIndex((campaign) => campaign.id === campaignId)) % DAY_EVENTS.length];
+    const event = MIDDAY_DILEMMAS[(legacy.day + CITY_STAGES.findIndex((stage) => stage.id === activeCityStage.id) + CAMPAIGNS.findIndex((campaign) => campaign.id === campaignId)) % MIDDAY_DILEMMAS.length];
     setDayEvent(event.id);
-    if (event.id === "supply") {
-      setResources((old) => Object.fromEntries(Object.entries(old).map(([key, amount]) => [key, amount + 18])));
-    } else if (event.id === "guild") {
-      setDayModifier((old) => ({ ...old, gather: 1.25 }));
-    } else {
-      setDayModifier((old) => ({ ...old, cost: 0.85 }));
-    }
-    setToast({ title: event.title, text: event.text, icon: event.icon });
+    setMiddayDilemma(event);
     chime();
-  }, [running, dayEvent, time, currentDayLength, legacy.day, campaignId, chime]);
+  }, [running, dayEvent, time, currentDayLength, legacy.day, campaignId, activeCityStage.id, chime]);
 
   useEffect(() => {
     if (!running || dayPhase === announcedPhase) return;
@@ -562,10 +627,33 @@ function App() {
     playTone(time <= 3 ? 620 : 310, 0.055, "square", time <= 3 ? 0.045 : 0.022);
   }, [running, time, playTone]);
 
+  const chooseDilemma = (choice) => {
+    if (choice.modifier) {
+      setDayModifier((old) => ({
+        gather: old.gather * (choice.modifier.gather || 1),
+        cost: old.cost * (choice.modifier.cost || 1),
+        construction: old.construction * (choice.modifier.construction || 1)
+      }));
+    }
+    setResources((old) => {
+      const next = { ...old };
+      if (choice.resources) Object.keys(next).forEach((resource) => { next[resource] += choice.resources; });
+      Object.entries(choice.spend || {}).forEach(([resource, amount]) => { next[resource] = Math.max(0, next[resource] - amount); });
+      Object.entries(choice.gain || {}).forEach(([resource, amount]) => { next[resource] += amount; });
+      return next;
+    });
+    setMiddayDilemma(null);
+    setToast({ title: choice.name, text: choice.detail, icon: "SPQR" });
+    setMessage(`The foreman records the order: ${choice.name}.`);
+    playTone(196, 0.12, "square", 0.025);
+  };
+
   const startDay = () => {
     if (running) return;
     setTime(currentDayLength);
     setLastResult(null);
+    setMiddayDilemma(null);
+    runStats.current = { idleSeconds: 0, stalledSeconds: 0 };
     setAnnouncedPhase("dawn");
     setRunning(true);
     setMessage("Daylight is precious. Put every pair of hands to work.");
@@ -637,18 +725,57 @@ function App() {
     key,
     Math.max(1, Math.ceil(amount * Math.max(0.65, Math.max(0.5, 1 - legacy.upgrades.architects * 0.05) * activePlan.cost * dayModifier.cost) * (activeCampaign.costScale || 1) * provinceBonus.cost))
   ]));
-  const canAfford = (building) => Object.entries(costFor(building)).every(([key, amount]) => resources[key] >= amount);
+  const reservedBuilding = BUILDINGS.find((building) => building.id === reservedBuildingId) || null;
+  const reservedCost = reservedBuilding ? costFor(reservedBuilding) : {};
+  const spendableResources = (buildingId) => Object.fromEntries(JOBS.map((job) => [
+    job.id,
+    resources[job.id] - (reservedBuildingId && reservedBuildingId !== buildingId ? (reservedCost[job.id] || 0) : 0)
+  ]));
+  const canAfford = (building) => Object.entries(costFor(building)).every(([key, amount]) => spendableResources(building.id)[key] >= amount);
   const queuedCount = (buildingId) => constructionQueue.filter((project) => project.buildingId === buildingId).length;
+  const objectiveShortfalls = objectiveShortfall(activeCampaign.goal, buildings, constructionQueue);
+  const criticalBuildingId = Object.keys(objectiveShortfalls)[0]
+    || constructionQueue.find((project) => (activeCampaign.goal[project.buildingId] || 0) > (buildings[project.buildingId] || 0))?.buildingId
+    || null;
+  const criticalProjectIndex = constructionQueue.findIndex((project) => project.buildingId === criticalBuildingId);
+  const queuedObjectiveFinish = constructionTimings
+    .filter((timing, index) => activeCampaign.goal[constructionQueue[index].buildingId])
+    .reduce((latestFinish, timing) => Math.max(latestFinish, timing.finishesIn), 0);
+  const unqueuedSeconds = Object.entries(objectiveShortfalls).reduce((sum, [buildingId, count]) => {
+    const building = BUILDINGS.find((item) => item.id === buildingId);
+    return sum + (building ? building.seconds * count / Math.max(0.01, constructionSpeed({ buildingId })) : 0);
+  }, 0);
+  const objectiveMaterialNeed = Object.entries(objectiveShortfalls).reduce((totals, [buildingId, count]) => {
+    const building = BUILDINGS.find((item) => item.id === buildingId);
+    Object.entries(building ? costFor(building) : {}).forEach(([resource, amount]) => {
+      totals[resource] = (totals[resource] || 0) + amount * count;
+    });
+    return totals;
+  }, {});
+  const gatheringDelay = JOBS.reduce((longest, job) => {
+    const deficit = Math.max(0, (objectiveMaterialNeed[job.id] || 0) - resources[job.id]);
+    if (deficit === 0) return longest;
+    const rate = effectiveCrew(workers[job.id]) * resourceGatherRate(job.id);
+    return Math.max(longest, rate > 0 ? deficit / rate : currentDayLength + 1);
+  }, 0);
+  const projectedFinishSeconds = Math.ceil(Math.max(queuedObjectiveFinish, gatheringDelay) + unqueuedSeconds / buildSlots);
+  const projectedMargin = running ? Math.floor(time - projectedFinishSeconds) : null;
   const activeProject = constructionQueue[0] || null;
-  const activeProjectEta = activeProject
-    ? Math.max(1, Math.ceil(activeProject.seconds * (1 - activeProject.progress / 100) / Math.max(0.01, constructionSpeed(activeProject))))
-    : 0;
+  const activeProjectEta = activeProject ? Math.max(1, Math.ceil(constructionTimings[0]?.finishesIn || 0)) : 0;
+  const extraBuilderEta = activeProject && idle > 0
+    ? Math.max(1, Math.ceil(activeProject.seconds * (1 - activeProject.progress / 100)
+      / Math.max(0.01, constructionSpeed(activeProject, constructionWorkers + 1, assigned + 1))))
+    : null;
+  const extraBuilderSavings = extraBuilderEta === null ? 0 : Math.max(0, activeProjectEta - extraBuilderEta);
   const bottleneck = (() => {
     if (activeProject && constructionWorkers === 0) {
       return { state: "stalled", label: "CONSTRUCTION STALLED", detail: `Assign builders to finish ${activeProject.name}.` };
     }
     if (activeProject) {
-      return { state: "building", label: `${activeProject.name.toUpperCase()} RISING`, detail: `About ${activeProjectEta}s at the current crew strength.` };
+      const objectiveWork = (activeCampaign.goal[activeProject.buildingId] || 0) > (buildings[activeProject.buildingId] || 0);
+      return objectiveWork
+        ? { state: "building", label: `${activeProject.name.toUpperCase()} RISING`, detail: `Critical work: about ${activeProjectEta}s at the current crew strength.` }
+        : { state: "gathering", label: "QUEUE OFF THE CRITICAL PATH", detail: `${activeProject.name} is using the active slot while required work remains.` };
     }
     const nextObjective = remainingObjectives[0];
     if (!nextObjective) return { state: "ready", label: "ROME STANDS READY", detail: "Every objective is complete." };
@@ -667,6 +794,13 @@ function App() {
   })();
   const paceForecast = (() => {
     if (!running || won) return null;
+    if (projectedMargin !== null && projectedMargin < 0 && (constructionQueue.length > 0 || Object.keys(objectiveShortfalls).length > 0)) {
+      return {
+        severity: "danger",
+        title: `ROME IS PROJECTED ${Math.abs(projectedMargin)}s LATE`,
+        detail: criticalBuildingId ? `${BUILDINGS.find((building) => building.id === criticalBuildingId)?.name} is on the critical path.` : bottleneck.detail
+      };
+    }
     if (activeProject && activeProjectEta > time) {
       return {
         severity: "danger",
@@ -690,11 +824,68 @@ function App() {
     }
     return null;
   })();
+  const foremanRemark = !running
+    ? `${districtCommand.name}: ${districtCommand.detail}`
+    : constructionWorkers === 0 && constructionQueue.length > 0
+      ? "Foreman: Plans do not lift stone. Give me builders."
+    : projectedMargin !== null && projectedMargin >= 12
+        ? `Foreman: The line is holding. We have roughly ${projectedMargin}s in hand.`
+        : projectedMargin !== null && projectedMargin >= 0
+          ? `Foreman: It fits, barely. Guard those final ${projectedMargin}s.`
+          : idle > 0
+            ? "Foreman: We are late while hands stand idle."
+            : "Foreman: Something must change—crew, order, or ambition.";
   const workforceDoctrine = ["gather", "balanced", "build", "stand-down"].find((mode) => {
     const preset = workforcePreset(totalWorkers, mode);
     return preset.constructionWorkers === constructionWorkers
       && JOBS.every((job) => preset.workers[job.id] === workers[job.id]);
   }) || "custom";
+  const activeConstruction = constructionQueue.slice(0, buildSlots)
+    .map((project) => BUILDINGS.find((building) => building.id === project.buildingId))
+    .filter(Boolean);
+  const professionUtilization = {
+    laborers: workers.wood + workers.clay > 0
+      ? { state: "working", text: "Boosting timber and clay crews" }
+      : { state: "waiting", text: "Assign crews to timber or clay" },
+    masons: constructionWorkers > 0 && activeConstruction.some((building) => building.cost.stone)
+      ? { state: "working", text: "Shaping stone on active works" }
+      : { state: "waiting", text: "Need builders on a stone project" },
+    haulers: assigned > 8
+      ? { state: "working", text: "Coordinating the large workforce" }
+      : { state: "waiting", text: "Most useful above eight active crews" },
+    engineers: constructionWorkers > 0 && (
+      activeConstruction.some((building) => building.points >= 600)
+      || (professions.engineers >= 4 && constructionQueue.length > 1)
+    )
+      ? { state: "working", text: professions.engineers >= 4 ? "Driving major works and a second slot" : "Driving a major work" }
+      : { state: "waiting", text: professions.engineers >= 4 ? "Order work for the second slot" : "Need a major work or four engineers" }
+  };
+
+  const reorderProject = (index, direction) => {
+    setConstructionQueue((old) => {
+      const next = moveQueueProject(old, index, direction);
+      constructionQueueRef.current = next;
+      return next;
+    });
+    playTone(105, 0.06, "square", 0.018);
+  };
+
+  const cancelProject = (project) => {
+    const salvage = salvageProject(project);
+    setResources((old) => {
+      const next = { ...old };
+      Object.entries(salvage).forEach(([resource, amount]) => { next[resource] += amount; });
+      return next;
+    });
+    setConstructionQueue((old) => {
+      const next = old.filter((item) => item.queueId !== project.queueId);
+      constructionQueueRef.current = next;
+      return next;
+    });
+    const recovered = Object.values(salvage).reduce((sum, amount) => sum + amount, 0);
+    setMessage(`${project.name} canceled. ${recovered > 0 ? `${recovered} materials salvaged.` : "No materials could be recovered."}`);
+    playTone(82, 0.12, "sawtooth", 0.025);
+  };
 
   const build = (building) => {
     if (!running) startDay();
@@ -703,9 +894,10 @@ function App() {
       setMessage("The construction ledger is full. Finish a project before ordering another.");
       return;
     }
+    const paidCost = costFor(building);
     setResources((old) => {
       const next = { ...old };
-      Object.entries(costFor(building)).forEach(([key, amount]) => next[key] -= amount);
+      Object.entries(paidCost).forEach(([key, amount]) => next[key] -= amount);
       return next;
     });
     const project = {
@@ -715,9 +907,11 @@ function App() {
       icon: building.icon,
       seconds: building.seconds,
       points: building.points,
+      paidCost,
       progress: 0
     };
     setConstructionQueue((old) => [...old, project]);
+    if (reservedBuildingId === building.id) setReservedBuildingId(null);
     setMessage(`${building.name} ordered. Move builders to construction to raise it before sunset.`);
     playTone(95, 0.1, "square", 0.025);
   };
@@ -736,6 +930,8 @@ function App() {
     setConstructionQueue([]);
     setBuildings(emptyBuildings);
     setDayEvent(null);
+    setMiddayDilemma(null);
+    setReservedBuildingId(null);
     setDayModifier({ gather: 1, cost: 1, construction: 1 });
     setLastPush(null);
     setAnnouncedPhase("dawn");
@@ -783,6 +979,8 @@ function App() {
     setConstructionQueue(restored.constructionQueue);
     setBuildings(restored.buildings);
     setDayEvent(restored.dayEvent);
+    setMiddayDilemma(MIDDAY_DILEMMAS.find((event) => event.id === restored.middayDilemmaId) || null);
+    setReservedBuildingId(restored.reservedBuildingId);
     setDayModifier(restored.dayModifier);
     setLastPush(restored.lastPush);
     setAnnouncedPhase(restored.announcedPhase);
@@ -815,6 +1013,8 @@ function App() {
     setConstructionQueue([]);
     setBuildings(emptyBuildings);
     setDayEvent(null);
+    setMiddayDilemma(null);
+    setReservedBuildingId(null);
     setDayModifier({ gather: 1, cost: 1, construction: 1 });
     setLastPush(null);
     setAnnouncedPhase("dawn");
@@ -854,6 +1054,8 @@ function App() {
     setConstructionQueue([]);
     setBuildings(emptyBuildings);
     setDayEvent(null);
+    setMiddayDilemma(null);
+    setReservedBuildingId(null);
     setDayModifier({ gather: 1, cost: 1, construction: 1 });
     setLastPush(null);
     setAnnouncedPhase("dawn");
@@ -877,6 +1079,8 @@ function App() {
     setConstructionQueue([]);
     setBuildings(emptyBuildings);
     setDayEvent(null);
+    setMiddayDilemma(null);
+    setReservedBuildingId(null);
     setDayModifier({ gather: 1, cost: 1, construction: 1 });
     setLastPush(null);
     setAnnouncedPhase("dawn");
@@ -1081,13 +1285,21 @@ function App() {
             <strong>{professionBonus.untrained} untrained</strong>
           </div>
           <div className="professionGrid">
-            {PROFESSIONS.map((profession) => (
-              <div className="profession" key={profession.id}>
-                <span>{profession.icon}</span>
-                <div><strong>{profession.name}</strong><small>{profession.desc}</small></div>
-                <aside><button onClick={() => assignProfession(profession.id, -1)}>−</button><b>{professions[profession.id]}</b><button onClick={() => assignProfession(profession.id, 1)}>+</button></aside>
-              </div>
-            ))}
+            {PROFESSIONS.map((profession) => {
+              const trained = professions[profession.id] > 0;
+              const utilization = professionUtilization[profession.id];
+              return (
+                <div className={`profession ${trained ? utilization.state : "untrained"}`} key={profession.id}>
+                  <span>{profession.icon}</span>
+                  <div>
+                    <strong>{profession.name}</strong>
+                    <small>{profession.desc}</small>
+                    {trained && <em>{utilization.state === "working" ? "IN USE" : "WAITING"} · {utilization.text}</em>}
+                  </div>
+                  <aside><button onClick={() => assignProfession(profession.id, -1)}>−</button><b>{professions[profession.id]}</b><button onClick={() => assignProfession(profession.id, 1)}>+</button></aside>
+                </div>
+              );
+            })}
           </div>
           {!running && !ended && (
             <>
@@ -1117,16 +1329,67 @@ function App() {
                 <span>CONSTRUCTION LEDGER</span>
                 <strong>{buildSlots} active slot{buildSlots > 1 ? "s" : ""} · {constructionQueue.length}/4 ordered</strong>
               </div>
+              {activeProject && (
+                <div className={`crewImpact ${extraBuilderSavings > 0 ? "useful" : "flat"}`}>
+                  <span>CREW FORECAST</span>
+                  <strong>
+                    {idle > 0
+                      ? extraBuilderSavings > 0
+                        ? `+1 builder saves about ${extraBuilderSavings}s · ${extraBuilderEta}s finish`
+                        : "+1 builder brings no meaningful time gain"
+                      : "No idle laborer available for the building crew"}
+                  </strong>
+                </div>
+              )}
+              <div className="commandIntel">
+                <div>
+                  <small>{districtCommand.name.toUpperCase()} · FOREMAN</small>
+                  <strong>{foremanRemark}</strong>
+                </div>
+                <span className={projectedMargin === null ? "" : projectedMargin >= 0 ? "ahead" : "late"}>
+                  {projectedMargin === null ? "AWAITING ORDERS" : projectedMargin >= 0 ? `PROJECTED +${projectedMargin}s` : `PROJECTED ${projectedMargin}s`}
+                </span>
+              </div>
+              {Object.keys(objectiveShortfalls).length > 0 && (
+                <div className="reserveRow">
+                  <small>PROTECT MATERIALS FOR</small>
+                  {Object.keys(objectiveShortfalls).slice(0, 4).map((buildingId) => {
+                    const building = BUILDINGS.find((item) => item.id === buildingId);
+                    return <button className={reservedBuildingId === buildingId ? "active" : ""} key={buildingId} onClick={() => setReservedBuildingId((old) => old === buildingId ? null : buildingId)}>{building?.name}</button>;
+                  })}
+                </div>
+              )}
               {constructionQueue.length === 0 ? (
                 <div className="emptyQueue"><span>⌁</span><small>Purchase a project to begin its foundation.</small></div>
               ) : (
                 <div className="queueProjects">
-                  {constructionQueue.map((project, index) => (
-                    <div className={`queueProject ${index < buildSlots ? "active" : "waiting"}`} key={project.queueId}>
-                      <span>{project.icon}</span>
-                      <div><strong>{project.name}</strong><small>{index < buildSlots ? `${Math.floor(project.progress)}% · ${constructionSpeed(project).toFixed(2)}× speed` : "WAITING FOR A BUILD SLOT"}</small><i><b style={{ width: `${project.progress}%` }} /></i></div>
-                    </div>
-                  ))}
+                  {constructionQueue.map((project, index) => {
+                    const timing = constructionTimings[index];
+                    const active = index < buildSlots;
+                    const salvage = salvageProject(project);
+                    const salvageText = Object.entries(salvage).map(([resource, amount]) => `${amount} ${resource}`).join(", ");
+                    return (
+                      <div className={`queueProject ${active ? "active" : "waiting"} ${index === criticalProjectIndex ? "critical" : ""}`} key={project.queueId}>
+                        <span>{project.icon}</span>
+                        <div>
+                          <strong>{project.name}</strong>
+                          <small>
+                            {constructionWorkers === 0
+                              ? "STALLED · ASSIGN BUILDERS"
+                              : active
+                                ? `SLOT ${timing.lane + 1} · ${Math.floor(project.progress)}% · ${Math.ceil(timing.finishesIn)}s TO FINISH`
+                                : `STARTS IN ${Math.ceil(timing.startsIn)}s · DONE IN ${Math.ceil(timing.finishesIn)}s`}
+                          </small>
+                          <i><b style={{ width: `${project.progress}%` }} /></i>
+                        </div>
+                        <aside className="queueActions">
+                          <button disabled={index === 0} onClick={() => reorderProject(index, -1)} title="Move earlier">↑</button>
+                          <button disabled={index === constructionQueue.length - 1} onClick={() => reorderProject(index, 1)} title="Move later">↓</button>
+                          <button className="cancel" onClick={() => cancelProject(project)} title={salvageText ? `Cancel and recover ${salvageText}` : "Cancel project"}>×</button>
+                        </aside>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1136,15 +1399,16 @@ function App() {
             <div className="cards">
               {BUILDINGS.filter((building) => !building.campaigns || building.campaigns.includes(campaignId)).map((building) => {
                 const buildingCost = costFor(building);
+                const available = spendableResources(building.id);
                 const missing = Object.entries(buildingCost)
-                  .map(([resource, amount]) => [resource, Math.max(0, Math.ceil(amount - resources[resource]))])
+                  .map(([resource, amount]) => [resource, Math.max(0, Math.ceil(amount - available[resource]))])
                   .filter(([, amount]) => amount > 0);
                 const affordable = missing.length === 0;
                 const inQueue = queuedCount(building.id);
                 const capped = buildings[building.id] + inQueue >= building.max;
                 const objectiveNeed = activeCampaign.goal[building.id];
                 return (
-                  <button className={`buildCard ${affordable && !capped ? "ready" : ""} ${objectiveNeed ? "objectiveBuild" : ""}`} key={building.id} onClick={() => build(building)} disabled={capped}>
+                  <button className={`buildCard ${affordable && !capped ? "ready" : ""} ${objectiveNeed ? "objectiveBuild" : ""} ${reservedBuildingId === building.id ? "reserved" : ""} ${time <= 15 && !objectiveNeed ? "sunsetQuiet" : ""}`} key={building.id} onClick={() => build(building)} disabled={capped}>
                     <span className={`buildingIcon ${building.id}`}>{building.icon}</span>
                     <span className="buildCopy"><small>{building.roman}</small><strong>{building.name}</strong><em>{building.desc}</em><span className="cost">{capped && inQueue ? `${inQueue} QUEUED` : inQueue ? `${inQueue} queued · ${formatCost(buildingCost)}` : capped ? "COMPLETE" : affordable ? `${formatCost(buildingCost)} · ${building.seconds}s base` : `NEED ${missing.map(([resource, amount]) => `${amount} ${resource}`).join(" · ")}`}</span></span>
                     <b>{objectiveNeed ? `${buildings[building.id]}${inQueue ? `+${inQueue}` : ""}/${objectiveNeed} GOAL` : `${buildings[building.id]}${inQueue ? `+${inQueue}` : ""}/${building.max}`}</b>
@@ -1268,6 +1532,26 @@ function App() {
       {bursts.map((b) => <span className="burst" key={b.id} style={{ left: b.x, top: b.y }}>{b.text}</span>)}
       {toast && <div className="toast" role="status" aria-live="polite"><span>{toast.icon}</span><div><small>{toast.title}</small><strong>{toast.text}</strong></div></div>}
 
+      {middayDilemma && (
+        <div className="overlay dilemmaOverlay" role="dialog" aria-modal="true" aria-labelledby="dilemma-title">
+          <div className="nightCard dilemmaCard">
+            <span className="wreath">{middayDilemma.icon}</span>
+            <small>MIDDAY · AN ORDER IS REQUIRED</small>
+            <h2 id="dilemma-title">{middayDilemma.title.toUpperCase()}</h2>
+            <p>{middayDilemma.text}</p>
+            <div className="dilemmaChoices">
+              {middayDilemma.choices.map((choice) => (
+                <button key={choice.id} onClick={() => chooseDilemma(choice)}>
+                  <strong>{choice.name}</strong>
+                  <small>{choice.detail}</small>
+                </button>
+              ))}
+            </div>
+            <em>The clock continues only after the foreman receives your order.</em>
+          </div>
+        </div>
+      )}
+
       {pendingRun && (
         <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="resume-title">
           <div className="nightCard resumeCard">
@@ -1326,6 +1610,12 @@ function App() {
                 {(lastResult.newProgressRecord || lastResult.newTimeRecord) && <em>NEW PERSONAL RECORD</em>}
               </div>
             )}
+            {won && lastResult?.grade && (
+              <div className={`masteryGrade ${lastResult.grade.id}`}>
+                <span>{lastResult.grade.name.toUpperCase()} MASTERY</span>
+                <strong>{lastResult.grade.detail}</strong>
+              </div>
+            )}
             {won && lastResult?.cityStage?.fact && (
               <div className="historyFact">
                 <small>ROME REMEMBERS</small>
@@ -1348,6 +1638,12 @@ function App() {
               <div className="sunsetLessons">
                 <small>TOMORROW’S LESSONS</small>
                 {lastResult.insights.map((insight) => <p key={insight}>{insight}</p>)}
+              </div>
+            )}
+            {!won && lastResult?.timeline?.length > 0 && (
+              <div className="lossTimeline">
+                <small>WHERE THE DAY WAS LOST</small>
+                {lastResult.timeline.map((event, index) => <p key={event}><b>{index + 1}</b>{event}</p>)}
               </div>
             )}
             <div className="results"><span><small>RENOWN</small><b>{score}</b></span><span><small>PROGRESS</small><b>{Math.round((lastResult?.progress || objectiveProgress) * 100)}%</b></span><span><small>LAURELS</small><b>+{lastResult?.earned || 0}</b></span></div>

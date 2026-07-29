@@ -278,6 +278,66 @@ export function workforcePreset(totalWorkers, mode) {
   };
 }
 
+export function constructionSchedule(projects, buildSlots, speeds) {
+  const slotCount = Math.max(1, Math.floor(Number(buildSlots) || 1));
+  const lanes = Array.from({ length: slotCount }, () => 0);
+  return projects.map((project, index) => {
+    const lane = lanes.indexOf(Math.min(...lanes));
+    const startsIn = lanes[lane];
+    const speed = Math.max(0.01, Number(speeds[index]) || 0.01);
+    const duration = Math.max(0, project.seconds * (1 - Math.max(0, Math.min(100, project.progress || 0)) / 100) / speed);
+    const finishesIn = startsIn + duration;
+    lanes[lane] = finishesIn;
+    return { lane, startsIn, duration, finishesIn };
+  });
+}
+
+export function salvageProject(project, salvageRate = 0.7) {
+  const unbuilt = 1 - Math.max(0, Math.min(100, Number(project?.progress) || 0)) / 100;
+  const rate = Math.max(0, Math.min(1, Number(salvageRate) || 0));
+  return Object.fromEntries(Object.entries(project?.paidCost || {}).map(([resource, amount]) => [
+    resource,
+    Math.floor(Math.max(0, Number(amount) || 0) * unbuilt * rate)
+  ]));
+}
+
+export function moveQueueProject(projects, index, direction) {
+  const nextIndex = index + direction;
+  if (index < 0 || index >= projects.length || nextIndex < 0 || nextIndex >= projects.length) return projects;
+  const next = [...projects];
+  [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+  return next;
+}
+
+export function masteryGrade(timeRemaining, dayLength, victory) {
+  if (!victory) return null;
+  const ratio = Math.max(0, Number(timeRemaining) || 0) / Math.max(1, Number(dayLength) || 1);
+  if (ratio >= 0.25) return { id: "laurel", name: "Laurel", detail: "Rome rose with a quarter-day to spare." };
+  if (ratio >= 0.12) return { id: "gold", name: "Gold", detail: "The plan held comfortably before sunset." };
+  if (ratio >= 0.04) return { id: "silver", name: "Silver", detail: "The city stood with precious light remaining." };
+  return { id: "bronze", name: "Bronze", detail: "Rome rose beneath the final rays." };
+}
+
+export function objectiveShortfall(goal, buildings, queue = []) {
+  const queued = queue.reduce((counts, project) => ({
+    ...counts,
+    [project.buildingId]: (counts[project.buildingId] || 0) + 1
+  }), {});
+  return Object.fromEntries(Object.entries(goal).map(([id, needed]) => [
+    id,
+    Math.max(0, needed - (buildings[id] || 0) - (queued[id] || 0))
+  ]).filter(([, missing]) => missing > 0));
+}
+
+export function sunsetTimeline({ idleSeconds = 0, stalledSeconds = 0, surplus = 0, unfinished = 0 }) {
+  const events = [];
+  if (idleSeconds >= 5) events.push(`${idleSeconds}s passed with idle hands.`);
+  if (stalledSeconds >= 3) events.push(`Construction stood without builders for ${stalledSeconds}s.`);
+  if (unfinished > 0) events.push(`${unfinished} objective project${unfinished === 1 ? "" : "s"} never reached the ledger.`);
+  if (surplus >= 80) events.push(`${Math.floor(surplus)} gathered materials remained unused at sunset.`);
+  return events.slice(0, 3);
+}
+
 export function campaignEffects(campaignId, buildings, totalWorkers, resources) {
   if (campaignId === "rome") {
     const capacity = 4 + (buildings.hut || 0) * 3;
@@ -350,6 +410,8 @@ export function restoreRunState(run, campaign, plan, emptyBuildings) {
     constructionQueue: Array.isArray(run.constructionQueue) ? run.constructionQueue.slice(0, 4) : [],
     buildings: { ...emptyBuildings, ...(run.buildings || {}) },
     dayEvent: run.dayEvent || null,
+    middayDilemmaId: run.middayDilemmaId || null,
+    reservedBuildingId: run.reservedBuildingId || null,
     dayModifier: { gather: 1, cost: 1, construction: 1, ...(run.dayModifier || {}) },
     lastPush: run.lastPush || null,
     announcedPhase: run.announcedPhase || "dawn"

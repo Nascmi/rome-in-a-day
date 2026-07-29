@@ -66,11 +66,17 @@ The run snapshot includes:
 - Construction queue and project percentages
 - Completed building counts
 - Midday event
+- Pending midday dilemma, if the player closes the game before choosing
+- Protected objective-building reservation
 - Temporary gathering, cost, and construction modifiers
 - Selected final order
 - Last announced day phase
 
 Snapshots are written shortly after meaningful state changes, including construction progress ticks.
+
+`middayDilemmaId` and `reservedBuildingId` are optional, resume-safe fields. Older snapshots load with no pending choice or protected building.
+
+Newly ordered construction projects record the exact `paidCost` used at purchase time. This lets cancellation return 70% of the unfinished portion without recalculating against later modifiers. Older saved projects without `paidCost` remain loadable, but cannot produce a material refund.
 
 Professions belong to the active day. They survive closing and resuming that attempt, but are cleared when the player advances to tomorrow or starts a different campaign.
 

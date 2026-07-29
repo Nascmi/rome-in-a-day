@@ -55,13 +55,18 @@ Purchasing a building pays its resources and places a project in the constructio
 - The ledger holds up to four ordered projects.
 - One project builds actively by default.
 - Architects level 3 unlocks a second simultaneous build slot.
-- Waiting projects retain their order.
+- Every project shows its estimated start and finish time against the current crew and available slots.
+- The player can move projects earlier or later at any time; partial progress travels with the project.
+- Cancelling a project recovers 70% of the resources paid for its unfinished portion. Work already completed is not refunded.
+- The crew forecast previews whether one additional builder would materially improve the active project's finish time.
 - Assigning workers to Construction increases build speed.
 - Projects continue slowly with no assigned construction workers.
 - Completed projects leave scaffolding and become permanent skyline buildings for the remainder of the day.
 - Campaign objectives count only completed buildings.
 
 Base durations range from two seconds for a road to 32 seconds for the Imperial Basilica. Actual time depends on the assigned construction crew and temporary modifiers.
+
+Profession assignments also report whether their specialty is currently in use or waiting for useful work. Laborers watch timber and clay crews, Masons watch active stone construction, Haulers watch workforce scale, and Engineers watch major works and the second build slot.
 
 Construction speed:
 
@@ -70,6 +75,21 @@ Construction speed:
 ```
 
 ## Emotional Arc of the Day
+
+## Command Intelligence
+
+The construction ledger interprets the plan instead of presenting raw numbers alone:
+
+- Required projects are marked as critical-path work.
+- A whole-objective forecast estimates whether all queued and still-unordered work fits before sunset.
+- The player may protect the stockpile for one required building; unrelated purchases cannot consume those resources.
+- Bottleneck advice distinguishes missing materials, absent builders, non-objective work occupying a slot, and mathematically late work.
+- During Final Light, non-objective building cards recede.
+- A contextual foreman reacts to idle crews and the projected completion margin.
+
+Each Rome district also carries a command identity, progressing from opening logistics and balanced market stockpiles through stone-heavy civic works and Senate resource protection to the complete Eternal City critical path.
+
+Victories receive a Bronze, Silver, Gold, or Laurel mastery grade according to the share of daylight remaining. Grades celebrate execution and never gate progression. Failed days retain a short timeline of actionable losses such as idle hands, stalled construction, unordered objective work, and large unused surpluses.
 
 The clock is the principal antagonist. Each attempt has four presented acts:
 
@@ -157,7 +177,7 @@ Mare Nostrum is the current endgame. It requires land infrastructure, naval infr
 
 ## Midday Events
 
-One deterministic event occurs at approximately 55% of the day:
+One deterministic two-choice dilemma occurs at approximately 55% of the day. The clock pauses while the player chooses a lasting tradeoff involving resources, gathering, cost, or construction speed.
 
 - Supply Caravan: adds 18 of every resource.
 - Guild Inspiration: gathering is 25% faster for the remainder of the day.
