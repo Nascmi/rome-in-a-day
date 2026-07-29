@@ -69,12 +69,12 @@ const BUILDINGS = [
 ];
 
 const UPGRADES = [
-  { id: "hands", name: "Calloused Hands", icon: "✊", desc: "+15% gathering speed", base: 3 },
-  { id: "rations", name: "Dawn Rations", icon: "◒", desc: "+2 starting workers", base: 4 },
-  { id: "carts", name: "Better Carts", icon: "⊞", desc: "+25% tap power", base: 3 },
-  { id: "foremen", name: "Foremen", icon: "⚑", desc: "Start with auto-assigned workers", base: 6 },
-  { id: "architects", name: "Architects", icon: "△", desc: "Buildings cost 5% less; level 3 adds a build slot", base: 8 },
-  { id: "legion", name: "Builder Legion", icon: "Ⅼ", desc: "+4 starting workers", base: 12 }
+  { id: "hands", name: "Calloused Hands", icon: "✊", desc: "+15% gathering speed", base: 3, max: 10 },
+  { id: "rations", name: "Dawn Rations", icon: "◒", desc: "+2 starting workers", base: 4, max: 10 },
+  { id: "carts", name: "Better Carts", icon: "⊞", desc: "+25% tap power", base: 3, max: 10 },
+  { id: "foremen", name: "Foremen", icon: "⚑", desc: "One-time unlock: automatically assign the opening crews", base: 6, max: 1 },
+  { id: "architects", name: "Architects", icon: "△", desc: "Buildings cost 5% less; level 3 adds a build slot", base: 8, max: 10 },
+  { id: "legion", name: "Builder Legion", icon: "Ⅼ", desc: "+4 starting workers", base: 12, max: 10 }
 ];
 
 const DISTRICTS = [
@@ -104,6 +104,10 @@ const freshLegacy = {
 
 function formatCost(cost) {
   return Object.entries(cost).map(([key, value]) => `${value} ${key}`).join(" · ");
+}
+
+function upgradeCost(upgrade, level) {
+  return Math.ceil(upgrade.base * Math.pow(1.75, level));
 }
 
 function App() {
@@ -201,13 +205,17 @@ function App() {
       const legacySave = envelope?.version === 2 ? envelope.legacy : JSON.parse(localStorage.getItem(LEGACY_SAVE_KEY));
       if (legacySave) {
         const completedCampaigns = legacySave.completedCampaigns || (legacySave.victories > 0 ? ["rome"] : []);
+        const upgrades = Object.fromEntries(UPGRADES.map((upgrade) => [
+          upgrade.id,
+          Math.max(0, Math.min(upgrade.max, Number(legacySave.upgrades?.[upgrade.id]) || 0))
+        ]));
         setLegacy({
           ...freshLegacy,
           ...legacySave,
           completedCampaigns,
           campaignStats: legacySave.campaignStats || {},
           achievements: legacySave.achievements || [],
-          upgrades: { ...freshLegacy.upgrades, ...legacySave.upgrades }
+          upgrades
         });
         if (envelope?.version === 2) {
           setSoundOn(envelope.preferences?.soundOn ?? true);
@@ -562,7 +570,8 @@ function App() {
 
   const buyUpgrade = (up) => {
     const level = legacy.upgrades[up.id];
-    const cost = up.base + level * (up.base + 1);
+    if (level >= up.max) return;
+    const cost = upgradeCost(up, level);
     if (legacy.laurels < cost) return;
     setLegacy((old) => ({
       ...old,
@@ -845,10 +854,11 @@ function App() {
               <div className="legacyIntro"><strong>{legacy.laurels} laurels</strong><span>Knowledge survives the night.</span></div>
               {UPGRADES.map((up) => {
                 const level = legacy.upgrades[up.id];
-                const cost = up.base + level * (up.base + 1);
+                const maxed = level >= up.max;
+                const cost = upgradeCost(up, level);
                 return (
-                  <button className="upgrade" key={up.id} onClick={() => buyUpgrade(up)} disabled={legacy.laurels < cost}>
-                    <span>{up.icon}</span><div><strong>{up.name}</strong><small>{up.desc}</small><em>Level {level} · {cost} laurels</em></div>
+                  <button className="upgrade" key={up.id} onClick={() => buyUpgrade(up)} disabled={maxed || legacy.laurels < cost}>
+                    <span>{up.icon}</span><div><strong>{up.name}</strong><small>{up.desc}</small><em>{maxed ? `MAX LEVEL · ${level}/${up.max}` : `Level ${level}/${up.max} · ${cost} laurels`}</em></div>
                   </button>
                 );
               })}

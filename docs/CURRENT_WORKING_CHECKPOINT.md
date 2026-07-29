@@ -15,6 +15,15 @@ The game is live, public, installable, and synchronized with GitHub.
 
 ## Most Recent Gameplay Work
 
+The current release rebalances permanent Legacy progression:
+
+- Capped all repeatable Legacy upgrades at level 10.
+- Changed Foremen into a one-time level-1 unlock.
+- Replaced linear prices with the exponential formula `ceil(base × 1.75 ^ current level)`.
+- Added clear current-level, cap, and MAX LEVEL labels.
+- Normalized older saves to the new caps without touching laurels or other progress.
+- Updated the PWA cache to `rome-in-a-day-v9`.
+
 The current live release adds save reliability and a clean-slate reset:
 
 - Added the versioned `rome-in-a-day-v2` save envelope.

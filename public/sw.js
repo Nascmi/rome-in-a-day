@@ -1,4 +1,4 @@
-const CACHE = "rome-in-a-day-v8";
+const CACHE = "rome-in-a-day-v9";
 const SHELL = ["/", "/manifest.webmanifest", "/icons/rome-icon.svg"];
 
 self.addEventListener("install", (event) => {

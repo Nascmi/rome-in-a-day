@@ -187,6 +187,10 @@ Permanent upgrades:
 - Architects: building cost reduction
 - Builder Legion: additional starting workers
 
+Repeatable upgrades cap at level 10. Foremen is a one-time unlock and caps at level 1.
+
+The price of the next level is `ceil(base cost × 1.75 ^ current level)`. Early knowledge remains attainable, while the final levels become long-term campaign goals.
+
 Construction discounts may stack, but their combined multiplier cannot fall below 65%. This prevents late-game upgrades, Frugal Works, and the Engineer event from trivializing entire chapters.
 
 ## Workforce Scaling

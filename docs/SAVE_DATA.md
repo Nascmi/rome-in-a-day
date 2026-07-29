@@ -85,7 +85,7 @@ The loader checks `rome-in-a-day-v2` first. If it is missing, the original `rome
 
 Loading merges stored legacy data over `freshLegacy`. Missing fields receive current defaults.
 
-Upgrade data is merged separately so new upgrade IDs can be added without erasing older levels.
+Upgrade data is normalized separately so new upgrade IDs receive their defaults and stored levels remain valid. On load, every level is clamped to its current cap: level 10 for repeatable upgrades and level 1 for Foremen.
 
 Older saves created before campaigns are migrated as follows:
 
@@ -101,7 +101,7 @@ When changing persistence:
 2. Add new fields to `freshLegacy`.
 3. Merge nested objects explicitly.
 4. Provide migration logic for renamed or reinterpreted fields.
-5. Never reduce saved worker or upgrade levels without an explicit player-facing reset design.
+5. If an upgrade cap changes, normalize old saves explicitly and document the change.
 6. Test a blank save and a legacy save.
 
 ## Full Reset
