@@ -9,13 +9,13 @@ The game is live, public, installable, and synchronized with GitHub.
 - Live URL: https://rome-in-a-day-nathan.web.app
 - GitHub: https://github.com/Nascmi/rome-in-a-day
 - Firebase project: `rome-in-a-day-nathan`
-- Current gameplay commit: `e51e0e9`
-- Current Firebase version: `f2c0583dd424671a`
+- Current gameplay commit: `e7ae582`
+- Current Firebase version: `d4d99b4272167d02`
 - Branch: `main`
 
 ## Most Recent Gameplay Work
 
-The current pending release adds save reliability and a clean-slate reset:
+The current live release adds save reliability and a clean-slate reset:
 
 - Added the versioned `rome-in-a-day-v2` save envelope.
 - Added automatic migration from `rome-in-a-day-v1`.
