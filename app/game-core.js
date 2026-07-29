@@ -47,6 +47,7 @@ export function normalizeLegacy(legacySave, freshLegacy, upgrades) {
     ...legacySave,
     completedCampaigns,
     campaignStats: legacySave.campaignStats || {},
+    runHistory: Array.isArray(legacySave.runHistory) ? legacySave.runHistory.slice(0, 30) : [],
     achievements: legacySave.achievements || [],
     upgrades: normalizedUpgrades
   };
@@ -92,6 +93,17 @@ export function isCampaignComplete(campaign, buildings) {
     .every(([id, needed]) => (buildings[id] || 0) >= needed);
 }
 
+export function campaignProgress(campaign, buildings, constructionQueue = []) {
+  const goalEntries = Object.entries(campaign.goal);
+  const progress = goalEntries.reduce((sum, [id, needed]) => {
+    const underway = constructionQueue
+      .filter((project) => project.buildingId === id)
+      .reduce((total, project) => total + Math.max(0, Math.min(100, project.progress || 0)) / 100, 0);
+    return sum + Math.min(1, ((buildings[id] || 0) + underway) / needed);
+  }, 0);
+  return progress / goalEntries.length;
+}
+
 export const EMPTY_PROFESSIONS = {
   laborers: 0,
   masons: 0,
@@ -111,6 +123,44 @@ export function professionEffects(professions, totalWorkers) {
     masonry: 1 + professions.masons * 0.06,
     engineering: 1 + professions.engineers * 0.075,
     engineerSlot: professions.engineers >= 4
+  };
+}
+
+export function campaignEffects(campaignId, buildings, totalWorkers, resources) {
+  if (campaignId === "rome") {
+    const capacity = 4 + (buildings.hut || 0) * 3;
+    const crowded = Math.max(0, totalWorkers - capacity);
+    return {
+      title: "Housing",
+      value: `${Math.min(totalWorkers, capacity)} / ${capacity} sheltered`,
+      detail: crowded ? `${crowded} builders are crowded; gathering and construction slow.` : "Every builder has room to recover.",
+      efficiency: Math.max(0.65, 1 - crowded * 0.025),
+      delivery: 1,
+      foodDrain: 0
+    };
+  }
+  if (campaignId === "italia") {
+    const roadCoverage = Math.min(1, (buildings.road || 0) / 18);
+    const supplied = (resources.food || 0) > 0;
+    return {
+      title: "Peninsula Supply",
+      value: supplied ? `${Math.round(roadCoverage * 100)}% road coverage` : "Food stores empty",
+      detail: supplied ? "Roads improve delivery between settlements." : "Hungry crews work at reduced strength.",
+      efficiency: supplied ? 1 : 0.72,
+      delivery: 1 + roadCoverage * 0.18,
+      foodDrain: totalWorkers * 0.018
+    };
+  }
+  const portCapacity = 8 + (buildings.harbor || 0) * 12 + (buildings.shipyard || 0) * 8;
+  const overCapacity = Math.max(0, totalWorkers - portCapacity);
+  const beaconBonus = (buildings.lighthouse || 0) * 0.12;
+  return {
+    title: "Port Throughput",
+    value: `${Math.min(totalWorkers, portCapacity)} / ${portCapacity} supplied`,
+    detail: overCapacity ? `${overCapacity} builders wait on overloaded docks.` : "The ports can supply every active crew.",
+    efficiency: Math.max(0.7, 1 - overCapacity * 0.018),
+    delivery: 1 + (buildings.harbor || 0) * 0.08 + beaconBonus,
+    foodDrain: 0
   };
 }
 

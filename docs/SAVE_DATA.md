@@ -46,6 +46,7 @@ The current value is a versioned envelope containing permanent progress, prefere
 | `achievements` | Array of earned achievement IDs |
 | `completedCampaigns` | Array of completed campaign IDs |
 | `campaignStats` | Attempts, victories, best progress, and best remaining time by campaign |
+| `runHistory` | Up to 30 recent local attempt summaries used for balance feedback |
 | `upgrades` | Permanent upgrade levels by ID |
 
 ## Active Run Shape

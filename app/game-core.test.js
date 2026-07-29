@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   CAMPAIGNS,
+  campaignProgress,
+  campaignEffects,
   createSaveEnvelope,
   isCampaignComplete,
   LEGACY_SAVE_KEY,
@@ -195,6 +197,37 @@ describe("day professions", () => {
   });
 });
 
+describe("campaign pressure", () => {
+  it("starts a fresh four-builder Rome without a housing penalty", () => {
+    const effects = campaignEffects("rome", { hut: 0 }, 4, { food: 15 });
+    expect(effects.efficiency).toBe(1);
+  });
+
+  it("makes Rome housing relieve workforce crowding", () => {
+    const crowded = campaignEffects("rome", { hut: 0 }, 16, { food: 15 });
+    const housed = campaignEffects("rome", { hut: 4 }, 16, { food: 15 });
+    expect(crowded.efficiency).toBeLessThan(1);
+    expect(housed.efficiency).toBe(1);
+  });
+
+  it("makes Italia roads and food matter independently", () => {
+    const opening = campaignEffects("italia", { road: 0 }, 12, { food: 15 });
+    const connected = campaignEffects("italia", { road: 18 }, 12, { food: 15 });
+    const hungry = campaignEffects("italia", { road: 18 }, 12, { food: 0 });
+    expect(connected.delivery).toBeGreaterThan(opening.delivery);
+    expect(hungry.efficiency).toBeLessThan(connected.efficiency);
+    expect(opening.foodDrain).toBeGreaterThan(0);
+  });
+
+  it("makes Mare Nostrum ports and lighthouse improve throughput", () => {
+    const overloaded = campaignEffects("mediterranean", { harbor: 0 }, 24, {});
+    const supplied = campaignEffects("mediterranean", { harbor: 2, shipyard: 1, lighthouse: 1 }, 24, {});
+    expect(overloaded.efficiency).toBeLessThan(1);
+    expect(supplied.efficiency).toBe(1);
+    expect(supplied.delivery).toBeGreaterThan(overloaded.delivery);
+  });
+});
+
 describe("Legacy upgrades", () => {
   it.each(upgrades)("$id uses ceil(base × 1.75 ^ level)", (upgrade) => {
     for (let level = 0; level <= upgrade.max; level += 1) {
@@ -225,5 +258,25 @@ describe("campaign outcomes", () => {
 
     expect(constructionQueue[0].progress).toBeGreaterThan(99);
     expect(isCampaignComplete(campaign, buildings)).toBe(false);
+  });
+
+  it("shows meaningful progress for objective construction underway", () => {
+    const campaign = CAMPAIGNS[0];
+    const buildings = { colosseum: 0 };
+    const constructionQueue = [{ buildingId: "colosseum", progress: 46 }];
+
+    expect(campaignProgress(campaign, buildings, constructionQueue)).toBe(0.46);
+    expect(isCampaignComplete(campaign, buildings)).toBe(false);
+  });
+
+  it("clamps queued objective progress at the campaign requirement", () => {
+    const campaign = { goal: { harbor: 2 } };
+    const buildings = { harbor: 1 };
+    const constructionQueue = [
+      { buildingId: "harbor", progress: 80 },
+      { buildingId: "harbor", progress: 70 }
+    ];
+
+    expect(campaignProgress(campaign, buildings, constructionQueue)).toBe(1);
   });
 });

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CAMPAIGNS,
+  campaignProgress,
+  campaignEffects,
   createSaveEnvelope,
   EMPTY_PROFESSIONS,
   isCampaignComplete,
@@ -95,7 +97,7 @@ const ACHIEVEMENTS = [
 const emptyBuildings = Object.fromEntries(BUILDINGS.map((b) => [b.id, 0]));
 const freshLegacy = {
   day: 1, laurels: 0, best: 0, total: 0, victories: 0, achievements: [],
-  completedCampaigns: [], campaignStats: {},
+  completedCampaigns: [], campaignStats: {}, runHistory: [],
   upgrades: { hands: 0, rations: 0, carts: 0, foremen: 0, architects: 0, legion: 0 }
 };
 
@@ -153,18 +155,19 @@ function App() {
   const roadBonus = 1 + Math.floor(buildings.road / 3) * 0.05;
   const workshopBonus = 1 + buildings.workshop * 0.12;
   const professionBonus = professionEffects(professions, totalWorkers);
-  const gatherRate = (1 + legacy.upgrades.hands * 0.15) * roadBonus * workshopBonus * forumBonus * activePlan.gather * dayModifier.gather * professionBonus.delivery;
+  const campaignBonus = campaignEffects(campaignId, buildings, totalWorkers, resources);
+  const gatherRate = (1 + legacy.upgrades.hands * 0.15) * roadBonus * workshopBonus * forumBonus * activePlan.gather * dayModifier.gather * professionBonus.delivery * campaignBonus.delivery * campaignBonus.efficiency;
   const resourceGatherRate = (jobId) => gatherRate * (jobId === "wood" || jobId === "clay" ? professionBonus.laborerGather : 1);
   const effectiveCrew = (count) => count <= 8 ? count : 8 + Math.pow(count - 8, professionBonus.coordinationExponent);
   const constructionSpeed = (project) => {
     const building = project ? BUILDINGS.find((item) => item.id === project.buildingId) : null;
     const masonryBonus = building?.cost.stone ? professionBonus.masonry : 1;
     const engineeringBonus = building?.points >= 600 ? professionBonus.engineering : 1;
-    return (0.35 + effectiveCrew(constructionWorkers) * 0.22) * dayModifier.construction * masonryBonus * engineeringBonus;
+    return (0.35 + effectiveCrew(constructionWorkers) * 0.22) * dayModifier.construction * masonryBonus * engineeringBonus * campaignBonus.efficiency;
   };
   const buildSlots = legacy.upgrades.architects >= 3 || professionBonus.engineerSlot ? 2 : 1;
   const campaignComplete = isCampaignComplete(activeCampaign, buildings);
-  const objectiveProgress = Object.entries(activeCampaign.goal).reduce((sum, [id, needed]) => sum + Math.min(1, buildings[id] / needed), 0) / Object.keys(activeCampaign.goal).length;
+  const objectiveProgress = campaignProgress(activeCampaign, buildings, constructionQueue);
   const remainingObjectives = Object.entries(activeCampaign.goal)
     .filter(([id, needed]) => buildings[id] < needed)
     .map(([id, needed]) => ({
@@ -273,8 +276,8 @@ function App() {
   }, [loaded, legacy, soundOn, musicOn, running, pendingRun, campaignId, planId, time, resources, workers, constructionWorkers, professions, constructionQueue, buildings, dayEvent, dayModifier, lastPush, announcedPhase]);
 
   useEffect(() => {
-    latest.current = { score, buildings, won, campaignId, time, constructionQueue };
-  }, [score, buildings, won, campaignId, time, constructionQueue]);
+    latest.current = { score, buildings, won, campaignId, time, constructionQueue, professions, totalWorkers };
+  }, [score, buildings, won, campaignId, time, constructionQueue, professions, totalWorkers]);
 
   useEffect(() => {
     constructionQueueRef.current = constructionQueue;
@@ -289,9 +292,13 @@ function App() {
     setLegacy((old) => ({ ...old, achievements: [...old.achievements, achievement.id], laurels: old.laurels + 3 }));
     setToast({ title: "Achievement", text: achievement.name, icon: achievement.icon });
     chime();
+  }, [loaded, legacy.total, legacy.day, legacy.victories, legacy.achievements, buildings, score, totalWorkers, chime]);
+
+  useEffect(() => {
+    if (!toast) return;
     const timer = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(timer);
-  }, [loaded, legacy.total, legacy.day, legacy.victories, legacy.achievements, buildings, score, totalWorkers, chime]);
+  }, [toast]);
 
   const finishDay = useCallback((victory = false) => {
     setRunning(false);
@@ -300,7 +307,7 @@ function App() {
     const completed = Object.values(current.buildings || {}).reduce((a, b) => a + b, 0);
     const completedCampaign = CAMPAIGNS.find((campaign) => campaign.id === current.campaignId) || CAMPAIGNS[0];
     const goalEntries = Object.entries(completedCampaign.goal);
-    const progress = goalEntries.reduce((sum, [id, needed]) => sum + Math.min(1, (current.buildings[id] || 0) / needed), 0) / goalEntries.length;
+    const progress = campaignProgress(completedCampaign, current.buildings || {}, current.constructionQueue || []);
     const oldStats = legacy.campaignStats[completedCampaign.id] || { attempts: 0, victories: 0, bestProgress: 0, bestTimeRemaining: 0 };
     const newProgressRecord = progress > oldStats.bestProgress;
     const newTimeRecord = victory && (current.time || 0) > oldStats.bestTimeRemaining;
@@ -340,7 +347,21 @@ function App() {
           bestProgress: Math.max(old.campaignStats[completedCampaign.id]?.bestProgress || 0, progress),
           bestTimeRemaining: Math.max(old.campaignStats[completedCampaign.id]?.bestTimeRemaining || 0, victory ? (current.time || 0) : 0)
         }
-      }
+      },
+      runHistory: [
+        {
+          day: old.day,
+          campaignId: completedCampaign.id,
+          victory,
+          progress: Math.round(progress * 1000) / 1000,
+          score: current.score || 0,
+          completed,
+          timeRemaining: current.time || 0,
+          workers: current.totalWorkers || 4,
+          professions: { ...EMPTY_PROFESSIONS, ...(current.professions || {}) }
+        },
+        ...(old.runHistory || [])
+      ].slice(0, 30)
     }));
     if (victory) chime();
     setMessage(victory ? "Rome stands before sunset. The impossible is done." : `Night falls. History remembers what your builders learned. +${earned} laurels.`);
@@ -368,11 +389,12 @@ function App() {
         JOBS.forEach((job) => {
           next[job.id] += effectiveCrew(workers[job.id]) * resourceGatherRate(job.id) * 0.5;
         });
+        if (campaignBonus.foodDrain > 0) next.food = Math.max(0, next.food - campaignBonus.foodDrain * 0.5);
         return next;
       });
     }, 500);
     return () => clearInterval(gather);
-  }, [running, workers, gatherRate, professionBonus.laborerGather, professionBonus.coordinationExponent]);
+  }, [running, workers, gatherRate, professionBonus.laborerGather, professionBonus.coordinationExponent, campaignBonus.foodDrain]);
 
   useEffect(() => {
     if (!running || constructionQueue.length === 0) return;
@@ -401,7 +423,7 @@ function App() {
       }
     }, 250);
     return () => clearInterval(construction);
-  }, [running, constructionQueue.length, constructionWorkers, professions, dayModifier.construction, buildSlots, playTone]);
+  }, [running, constructionQueue.length, constructionWorkers, professions, dayModifier.construction, campaignBonus.efficiency, buildSlots, playTone]);
 
   useEffect(() => {
     if (!running || !campaignComplete || won) return;
@@ -428,8 +450,6 @@ function App() {
     }
     setToast({ title: event.title, text: event.text, icon: event.icon });
     chime();
-    const timer = setTimeout(() => setToast(null), 4500);
-    return () => clearTimeout(timer);
   }, [running, dayEvent, time, activeCampaign.dayLength, activePlan.time, legacy.day, campaignId, chime]);
 
   useEffect(() => {
@@ -444,8 +464,6 @@ function App() {
     if (!phaseCopy) return;
     setToast(phaseCopy);
     if (dayPhase === "final") chime();
-    const timer = setTimeout(() => setToast(null), dayPhase === "final" ? 3200 : 2200);
-    return () => clearTimeout(timer);
   }, [running, dayPhase, announcedPhase, remainingObjectives.length, activePlan.name, chime]);
 
   useEffect(() => {
@@ -692,6 +710,20 @@ function App() {
     });
     return items;
   }, [buildings]);
+  const runSummary = useMemo(() => {
+    const history = legacy.runHistory || [];
+    const victories = history.filter((run) => run.victory).length;
+    return {
+      attempts: history.length,
+      victories,
+      averageProgress: history.length
+        ? Math.round(history.reduce((sum, run) => sum + run.progress, 0) / history.length * 100)
+        : 0,
+      averageWorkers: history.length
+        ? Math.round(history.reduce((sum, run) => sum + run.workers, 0) / history.length)
+        : 0
+    };
+  }, [legacy.runHistory]);
 
   if (!loaded) return <main className="loading">Waking the builders…</main>;
 
@@ -738,11 +770,6 @@ function App() {
           <strong>{Math.floor(time / 60)}:{String(time % 60).padStart(2, "0")}</strong>
           <span>DUSK ◐</span>
         </div>
-        <div className="objectiveFloat">
-          <small>CHAPTER {activeCampaign.chapter} OBJECTIVE</small>
-          <strong>{activeCampaign.brief}</strong>
-          <div><i style={{ width: `${objectiveProgress * 100}%` }} /></div>
-        </div>
         {running && <div className="phaseStamp">{dayPhase === "final" ? "FINAL LIGHT" : dayPhase.toUpperCase()}</div>}
       </section>
 
@@ -757,6 +784,44 @@ function App() {
       </section>
 
       <div className="message"><span>✦</span>{message}</div>
+
+      {!running && !ended && (
+        <section className="chapterObjectiveBar">
+          <small>CHAPTER {activeCampaign.chapter} OBJECTIVE</small>
+          <strong>{activeCampaign.brief}</strong>
+          <b>{Math.round(objectiveProgress * 100)}%</b>
+        </section>
+      )}
+
+      {running && (
+        <section className="dayStatus">
+          <div className={`campaignPressure ${campaignBonus.efficiency < 1 ? "strained" : ""}`}>
+            <small>{campaignBonus.title}</small>
+            <strong>{campaignBonus.value}</strong>
+            <span>{campaignBonus.detail}</span>
+          </div>
+          <div className="objectiveChecklist">
+            <small>CHAPTER {activeCampaign.chapter} · {activeCampaign.brief}</small>
+            <div>
+              {Object.entries(activeCampaign.goal).map(([id, needed]) => {
+                const building = BUILDINGS.find((item) => item.id === id);
+                const queuedProgress = constructionQueue
+                  .filter((project) => project.buildingId === id)
+                  .reduce((sum, project) => sum + project.progress / 100, 0);
+                const displayed = Math.min(needed, (buildings[id] || 0) + queuedProgress);
+                const complete = (buildings[id] || 0) >= needed;
+                return (
+                  <span className={complete ? "complete" : ""} key={id}>
+                    <b>{complete ? "✓" : `${Math.round((displayed / needed) * 100)}%`}</b>
+                    {building?.name || id}
+                    <em>{buildings[id] || 0}/{needed}</em>
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {running && time <= 20 && !lastPush && (
         <section className="lastPush">
@@ -880,6 +945,12 @@ function App() {
             </div>
           ) : (
             <div className="chronicle">
+              <div className="runHistorySummary">
+                <div><small>LOCAL RUN HISTORY</small><strong>{runSummary.attempts} recorded days</strong></div>
+                <span><b>{runSummary.victories}</b> victories</span>
+                <span><b>{runSummary.averageProgress}%</b> average progress</span>
+                <span><b>{runSummary.averageWorkers}</b> average builders</span>
+              </div>
               <div className="campaignMap">
                 {CAMPAIGNS.map((campaign) => {
                   const unlocked = !campaign.unlock || legacy.completedCampaigns.includes(campaign.unlock);
