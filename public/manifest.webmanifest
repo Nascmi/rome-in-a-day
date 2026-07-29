@@ -1,0 +1,26 @@
+{
+  "name": "Rome Wasn't Built in a Day",
+  "short_name": "Build Rome",
+  "description": "Build Rome before sunset. Fail. Learn. Return stronger tomorrow.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4eddd",
+  "theme_color": "#8f2d28",
+  "orientation": "any",
+  "categories": ["games", "strategy"],
+  "icons": [
+    {
+      "src": "/icons/rome-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Begin Another Day",
+      "short_name": "Build",
+      "url": "/"
+    }
+  ]
+}
