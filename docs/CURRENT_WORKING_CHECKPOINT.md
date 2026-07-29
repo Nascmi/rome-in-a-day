@@ -9,13 +9,13 @@ The game is live, public, installable, and synchronized with GitHub.
 - Live URL: https://rome-in-a-day-nathan.web.app
 - GitHub: https://github.com/Nascmi/rome-in-a-day
 - Firebase project: `rome-in-a-day-nathan`
-- Current gameplay commit before the emotional-day release: `6e52e7a`
-- Current Firebase version before the emotional-day release: `e19b68bcafa5b7f3`
+- Current gameplay commit: `2828f3a`
+- Current Firebase version: `02cf5e154dfadda3`
 - Branch: `main`
 
 ## Most Recent Gameplay Work
 
-The current pending release makes the clock the principal antagonist:
+The current live release makes the clock the principal antagonist:
 
 - Added explicit Morning, Afternoon, Evening, and Final Light phases.
 - Added phase-specific skies, messages, clock urgency, and final ticks.
