@@ -1,4 +1,7 @@
 node_modules/
 .next/
+out/
 .visual-review/
+.firebase/
+firebase-debug.log
 npm-debug.log*
