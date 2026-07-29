@@ -13,6 +13,12 @@ The game is live, public, installable, and synchronized with GitHub.
 - Current Firebase version: `fa31c26efa4b102c`
 - Branch: `main`
 
+## July 29 Progress Pin
+
+This is the safe return point for the next session. The production build passed, GitHub contains the live gameplay source, and Firebase was verified to serve the `rome-in-a-day-v9` service worker.
+
+The next implementation sequence is recorded in [`NEXT_STEPS.md`](NEXT_STEPS.md). Begin with the automated progression and campaign regression tests before adding the next gameplay system.
+
 ## Most Recent Gameplay Work
 
 The current release rebalances permanent Legacy progression:
