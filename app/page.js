@@ -277,9 +277,13 @@ function App() {
     if (!running || !campaignComplete || won) return;
     setWon(true);
     setMessage(`${activeCampaign.name} stands complete before sunset.`);
+  }, [running, campaignComplete, won, activeCampaign.name]);
+
+  useEffect(() => {
+    if (!running || !won) return;
     const timer = setTimeout(() => finishDay(true), 700);
     return () => clearTimeout(timer);
-  }, [running, campaignComplete, won, activeCampaign.name, finishDay]);
+  }, [running, won, finishDay]);
 
   useEffect(() => {
     if (!running || dayEvent || time !== Math.floor((activeCampaign.dayLength + activePlan.time) * 0.55)) return;
