@@ -5,6 +5,39 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 const DAY_LENGTH = 90;
 const SAVE_KEY = "rome-in-a-day-v1";
 
+const CAMPAIGNS = [
+  {
+    id: "rome", chapter: "I", name: "Rome", subtitle: "Raise the Eternal City",
+    dayLength: 90, unlock: null, reward: 25,
+    goal: { colosseum: 1 },
+    brief: "Crown the city with the Colosseum before sunset."
+  },
+  {
+    id: "italia", chapter: "II", name: "Italia", subtitle: "Unite the Peninsula",
+    dayLength: 105, unlock: "rome", reward: 40,
+    goal: { road: 12, hut: 6, aqueduct: 2, temple: 1 },
+    brief: "Bind the towns together with roads, water, homes, and law."
+  },
+  {
+    id: "mediterranean", chapter: "III", name: "Mare Nostrum", subtitle: "Command the Inland Sea",
+    dayLength: 120, unlock: "italia", reward: 60,
+    goal: { road: 15, workshop: 4, aqueduct: 3, temple: 2, colosseum: 1 },
+    brief: "Build the ports and civic works of a Mediterranean power."
+  }
+];
+
+const PLANS = [
+  { id: "balanced", name: "Measured Plans", icon: "△", desc: "A full day with no penalties.", gather: 1, cost: 1, time: 0 },
+  { id: "forced", name: "Forced March", icon: "⚡", desc: "+35% gathering, but 15 fewer seconds.", gather: 1.35, cost: 1, time: -15 },
+  { id: "frugal", name: "Frugal Works", icon: "◫", desc: "Buildings cost 15% less; tapping is weaker.", gather: 1, cost: 0.85, time: 0, tap: 0.8 }
+];
+
+const DAY_EVENTS = [
+  { id: "supply", title: "Supply Caravan", text: "A caravan arrives with 18 of every material.", icon: "⊞" },
+  { id: "guild", title: "Guild Inspiration", text: "Gathering is 25% faster for the rest of the day.", icon: "⚒" },
+  { id: "engineer", title: "A Brilliant Engineer", text: "Construction costs 15% less for the rest of the day.", icon: "△" }
+];
+
 const JOBS = [
   { id: "wood", name: "Timber", icon: "♣", color: "#6d8b55" },
   { id: "stone", name: "Stone", icon: "◆", color: "#8b8d88" },
@@ -51,6 +84,7 @@ const ACHIEVEMENTS = [
 const emptyBuildings = Object.fromEntries(BUILDINGS.map((b) => [b.id, 0]));
 const freshLegacy = {
   day: 1, laurels: 0, best: 0, total: 0, victories: 0, achievements: [],
+  completedCampaigns: [],
   upgrades: { hands: 0, rations: 0, carts: 0, foremen: 0, architects: 0, legion: 0 }
 };
 
@@ -61,6 +95,8 @@ function formatCost(cost) {
 function App() {
   const [legacy, setLegacy] = useState(freshLegacy);
   const [loaded, setLoaded] = useState(false);
+  const [campaignId, setCampaignId] = useState("rome");
+  const [planId, setPlanId] = useState("balanced");
   const [time, setTime] = useState(DAY_LENGTH);
   const [running, setRunning] = useState(false);
   const [ended, setEnded] = useState(false);
@@ -76,10 +112,14 @@ function App() {
   const [musicOn, setMusicOn] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [toast, setToast] = useState(null);
+  const [dayEvent, setDayEvent] = useState(null);
+  const [dayModifier, setDayModifier] = useState({ gather: 1, cost: 1 });
   const latest = useRef({});
   const audioContext = useRef(null);
   const musicTimer = useRef(null);
 
+  const activeCampaign = CAMPAIGNS.find((campaign) => campaign.id === campaignId) || CAMPAIGNS[0];
+  const activePlan = PLANS.find((plan) => plan.id === planId) || PLANS[0];
   const districtUnlocked = (district) => district.victory ? legacy.victories >= district.need : legacy.total >= district.need;
   const forumBonus = districtUnlocked(DISTRICTS[1]) ? 1.1 : 1;
   const palatineBonus = districtUnlocked(DISTRICTS[2]) ? 10 : 0;
@@ -91,7 +131,9 @@ function App() {
   const score = Math.floor(BUILDINGS.reduce((sum, b) => sum + buildings[b.id] * b.points, 0) * capitolineBonus);
   const roadBonus = 1 + Math.floor(buildings.road / 3) * 0.05;
   const workshopBonus = 1 + buildings.workshop * 0.12;
-  const gatherRate = (1 + legacy.upgrades.hands * 0.15) * roadBonus * workshopBonus * forumBonus;
+  const gatherRate = (1 + legacy.upgrades.hands * 0.15) * roadBonus * workshopBonus * forumBonus * activePlan.gather * dayModifier.gather;
+  const campaignComplete = Object.entries(activeCampaign.goal).every(([id, needed]) => buildings[id] >= needed);
+  const objectiveProgress = Object.entries(activeCampaign.goal).reduce((sum, [id, needed]) => sum + Math.min(1, buildings[id] / needed), 0) / Object.keys(activeCampaign.goal).length;
 
   const playTone = useCallback((frequency, duration = 0.12, type = "triangle", volume = 0.035) => {
     if (!soundOn || typeof window === "undefined") return;
@@ -117,12 +159,20 @@ function App() {
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
-      if (saved) setLegacy({
-        ...freshLegacy,
-        ...saved,
-        achievements: saved.achievements || [],
-        upgrades: { ...freshLegacy.upgrades, ...saved.upgrades }
-      });
+      if (saved) {
+        const completedCampaigns = saved.completedCampaigns || (saved.victories > 0 ? ["rome"] : []);
+        setLegacy({
+          ...freshLegacy,
+          ...saved,
+          completedCampaigns,
+          achievements: saved.achievements || [],
+          upgrades: { ...freshLegacy.upgrades, ...saved.upgrades }
+        });
+        if (completedCampaigns.includes("rome")) {
+          setCampaignId(completedCampaigns.includes("italia") ? "mediterranean" : "italia");
+          setTime(completedCampaigns.includes("italia") ? CAMPAIGNS[2].dayLength : CAMPAIGNS[1].dayLength);
+        }
+      }
     } catch {}
     setLoaded(true);
   }, []);
@@ -158,8 +208,8 @@ function App() {
   }, [legacy, loaded]);
 
   useEffect(() => {
-    latest.current = { score, buildings, won };
-  }, [score, buildings, won]);
+    latest.current = { score, buildings, won, campaignId };
+  }, [score, buildings, won, campaignId]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -179,13 +229,17 @@ function App() {
     setEnded(true);
     const current = latest.current;
     const completed = Object.values(current.buildings || {}).reduce((a, b) => a + b, 0);
-    const earned = Math.max(1, Math.floor((current.score || 0) / 45) + Math.floor(completed / 3) + (victory ? 25 : 0));
+    const completedCampaign = CAMPAIGNS.find((campaign) => campaign.id === current.campaignId) || CAMPAIGNS[0];
+    const earned = Math.max(1, Math.floor((current.score || 0) / 45) + Math.floor(completed / 3) + (victory ? completedCampaign.reward : 0));
     setLegacy((old) => ({
       ...old,
       laurels: old.laurels + earned,
       best: Math.max(old.best, current.score || 0),
       total: old.total + completed,
-      victories: old.victories + (victory ? 1 : 0)
+      victories: old.victories + (victory ? 1 : 0),
+      completedCampaigns: victory && !old.completedCampaigns.includes(completedCampaign.id)
+        ? [...old.completedCampaigns, completedCampaign.id]
+        : old.completedCampaigns
     }));
     if (victory) chime();
     setMessage(victory ? "Rome stands before sunset. The impossible is done." : `Night falls. History remembers what your builders learned. +${earned} laurels.`);
@@ -219,8 +273,34 @@ function App() {
     return () => clearInterval(gather);
   }, [running, workers, gatherRate]);
 
+  useEffect(() => {
+    if (!running || !campaignComplete || won) return;
+    setWon(true);
+    setMessage(`${activeCampaign.name} stands complete before sunset.`);
+    const timer = setTimeout(() => finishDay(true), 700);
+    return () => clearTimeout(timer);
+  }, [running, campaignComplete, won, activeCampaign.name, finishDay]);
+
+  useEffect(() => {
+    if (!running || dayEvent || time !== Math.floor((activeCampaign.dayLength + activePlan.time) * 0.55)) return;
+    const event = DAY_EVENTS[(legacy.day + CAMPAIGNS.findIndex((campaign) => campaign.id === campaignId)) % DAY_EVENTS.length];
+    setDayEvent(event.id);
+    if (event.id === "supply") {
+      setResources((old) => Object.fromEntries(Object.entries(old).map(([key, amount]) => [key, amount + 18])));
+    } else if (event.id === "guild") {
+      setDayModifier((old) => ({ ...old, gather: 1.25 }));
+    } else {
+      setDayModifier((old) => ({ ...old, cost: 0.85 }));
+    }
+    setToast({ title: event.title, text: event.text, icon: event.icon });
+    chime();
+    const timer = setTimeout(() => setToast(null), 4500);
+    return () => clearTimeout(timer);
+  }, [running, dayEvent, time, activeCampaign.dayLength, activePlan.time, legacy.day, campaignId, chime]);
+
   const startDay = () => {
     if (running) return;
+    setTime(activeCampaign.dayLength + activePlan.time);
     setRunning(true);
     setMessage("Daylight is precious. Put every pair of hands to work.");
     if (legacy.upgrades.foremen > 0 && assigned === 0) {
@@ -241,7 +321,7 @@ function App() {
 
   const tapGather = (job, event) => {
     if (!running) startDay();
-    const amount = (1.5 + legacy.upgrades.carts * 0.5) * roadBonus;
+    const amount = (1.5 + legacy.upgrades.carts * 0.5) * roadBonus * (activePlan.tap || 1);
     setResources((old) => ({ ...old, [job]: old[job] + amount }));
     const rect = event.currentTarget.getBoundingClientRect();
     const id = Date.now() + Math.random();
@@ -252,7 +332,7 @@ function App() {
 
   const costFor = (building) => Object.fromEntries(Object.entries(building.cost).map(([key, amount]) => [
     key,
-    Math.max(1, Math.ceil(amount * Math.max(0.5, 1 - legacy.upgrades.architects * 0.05)))
+    Math.max(1, Math.ceil(amount * Math.max(0.5, 1 - legacy.upgrades.architects * 0.05) * activePlan.cost * dayModifier.cost))
   ]));
   const canAfford = (building) => Object.entries(costFor(building)).every(([key, amount]) => resources[key] >= amount);
 
@@ -270,21 +350,23 @@ function App() {
     playTone(building.id === "colosseum" ? 110 : 95, 0.16, "sawtooth", 0.035);
     setTimeout(() => playTone(145, 0.1, "square", 0.02), 90);
     setMessage(`${building.name} complete. Rome reaches a little higher.`);
-    if (building.id === "colosseum") {
-      setWon(true);
-      setTimeout(() => finishDay(true), 500);
-    }
   };
 
   const tomorrow = () => {
+    const currentIndex = CAMPAIGNS.findIndex((campaign) => campaign.id === campaignId);
+    const nextCampaign = won && currentIndex < CAMPAIGNS.length - 1 ? CAMPAIGNS[currentIndex + 1] : activeCampaign;
     setLegacy((old) => ({ ...old, day: old.day + 1 }));
-    setTime(DAY_LENGTH);
+    if (nextCampaign.id !== campaignId) setCampaignId(nextCampaign.id);
+    setPlanId("balanced");
+    setTime(nextCampaign.dayLength);
     setResources({ wood: 15 + palatineBonus, stone: 12 + palatineBonus, clay: 8 + palatineBonus, food: 15 + palatineBonus });
     setWorkers({ wood: 0, stone: 0, clay: 0, food: 0 });
     setBuildings(emptyBuildings);
+    setDayEvent(null);
+    setDayModifier({ gather: 1, cost: 1 });
     setEnded(false);
     setWon(false);
-    setMessage("The city is gone. The knowledge remains.");
+    setMessage(nextCampaign.id !== campaignId ? `${nextCampaign.name} awaits. Rome’s knowledge marches with you.` : "The city is gone. The knowledge remains.");
     setActiveTab("build");
   };
 
@@ -310,7 +392,25 @@ function App() {
     setInstallPrompt(null);
   };
 
-  const sunPct = ((DAY_LENGTH - time) / DAY_LENGTH) * 100;
+  const selectCampaign = (campaign) => {
+    const unlocked = !campaign.unlock || legacy.completedCampaigns.includes(campaign.unlock);
+    if (!unlocked || running) return;
+    setCampaignId(campaign.id);
+    setPlanId("balanced");
+    setTime(campaign.dayLength);
+    setResources({ wood: 15 + palatineBonus, stone: 12 + palatineBonus, clay: 8 + palatineBonus, food: 15 + palatineBonus });
+    setWorkers({ wood: 0, stone: 0, clay: 0, food: 0 });
+    setBuildings(emptyBuildings);
+    setDayEvent(null);
+    setDayModifier({ gather: 1, cost: 1 });
+    setEnded(false);
+    setWon(false);
+    setMessage(`${campaign.name}: ${campaign.brief}`);
+    setActiveTab("build");
+  };
+
+  const currentDayLength = activeCampaign.dayLength + activePlan.time;
+  const sunPct = ((currentDayLength - time) / currentDayLength) * 100;
   const cityItems = useMemo(() => {
     const items = [];
     BUILDINGS.forEach((b) => {
@@ -326,7 +426,7 @@ function App() {
       <header className="topbar">
         <div className="brand">
           <span className="spqr">SPQR</span>
-          <div><h1>ROME WASN’T BUILT IN A DAY</h1><p>But perhaps tomorrow.</p></div>
+          <div><h1>{activeCampaign.name === "Rome" ? "ROME WASN’T BUILT IN A DAY" : activeCampaign.name.toUpperCase()}</h1><p>Chapter {activeCampaign.chapter} · {activeCampaign.subtitle}</p></div>
         </div>
         <div className="headerActions">
           <button className={soundOn ? "on" : ""} onClick={() => setSoundOn((old) => !old)} aria-label="Toggle sound">{soundOn ? "◖))" : "◖×"}</button>
@@ -359,6 +459,11 @@ function App() {
           <strong>{Math.floor(time / 60)}:{String(time % 60).padStart(2, "0")}</strong>
           <span>DUSK ◐</span>
         </div>
+        <div className="objectiveFloat">
+          <small>CHAPTER {activeCampaign.chapter} OBJECTIVE</small>
+          <strong>{activeCampaign.brief}</strong>
+          <div><i style={{ width: `${objectiveProgress * 100}%` }} /></div>
+        </div>
       </section>
 
       <section className="statRow">
@@ -384,7 +489,19 @@ function App() {
               <div><button onClick={() => assign(job.id, -1)}>−</button><b>{workers[job.id]}</b><button onClick={() => assign(job.id, 1)}>+</button></div>
             </div>
           ))}
-          {!running && !ended && <button className="start" onClick={startDay}>BEGIN THE DAY <span>→</span></button>}
+          {!running && !ended && (
+            <>
+              <div className="planLabel">PRE-DAWN ORDERS</div>
+              <div className="planChoices">
+                {PLANS.map((plan) => (
+                  <button className={planId === plan.id ? "selected" : ""} key={plan.id} onClick={() => { setPlanId(plan.id); setTime(activeCampaign.dayLength + plan.time); }}>
+                    <span>{plan.icon}</span><div><strong>{plan.name}</strong><small>{plan.desc}</small></div>
+                  </button>
+                ))}
+              </div>
+              <button className="start" onClick={startDay}>BEGIN THE DAY <span>→</span></button>
+            </>
+          )}
         </aside>
 
         <section className="ledger">
@@ -423,6 +540,18 @@ function App() {
             </div>
           ) : (
             <div className="chronicle">
+              <div className="campaignMap">
+                {CAMPAIGNS.map((campaign) => {
+                  const unlocked = !campaign.unlock || legacy.completedCampaigns.includes(campaign.unlock);
+                  const complete = legacy.completedCampaigns.includes(campaign.id);
+                  return (
+                    <button className={`${unlocked ? "unlocked" : ""} ${campaign.id === campaignId ? "current" : ""}`} key={campaign.id} disabled={!unlocked || running} onClick={() => selectCampaign(campaign)}>
+                      <span>{complete ? "✓" : unlocked ? campaign.chapter : "×"}</span>
+                      <div><small>CHAPTER {campaign.chapter}</small><strong>{campaign.name}</strong><em>{complete ? "CONQUERED" : unlocked ? campaign.subtitle : "LOCKED"}</em></div>
+                    </button>
+                  );
+                })}
+              </div>
               <div className="chronicleHead">
                 <div><small>THE GROWING CITY</small><strong>{DISTRICTS.filter(districtUnlocked).length} / {DISTRICTS.length} districts</strong></div>
                 <div><small>DEEDS REMEMBERED</small><strong>{legacy.achievements.length} / {ACHIEVEMENTS.length} achievements</strong></div>
@@ -468,10 +597,10 @@ function App() {
           <div className="nightCard">
             <span className="wreath">❧</span>
             <small>{won ? "THE IMPOSSIBLE DAY" : "SUNSET • ATTEMPT COMPLETE"}</small>
-            <h2>{won ? "ROME STANDS." : "ROME WASN’T BUILT TODAY."}</h2>
-            <p>{won ? "Against time itself, your builders raised Rome before nightfall." : "The roads vanish. The walls return to dust. But skilled hands remember."}</p>
+            <h2>{won ? `${activeCampaign.name.toUpperCase()} STANDS.` : `${activeCampaign.name.toUpperCase()} WASN’T BUILT TODAY.`}</h2>
+            <p>{won ? `Against time itself, your builders completed the works of ${activeCampaign.name} before nightfall.` : "The roads vanish. The walls return to dust. But skilled hands remember."}</p>
             <div className="results"><span><small>RENOWN</small><b>{score}</b></span><span><small>BUILDINGS</small><b>{Object.values(buildings).reduce((a, b) => a + b, 0)}</b></span><span><small>LAURELS</small><b>{legacy.laurels}</b></span></div>
-            <button onClick={tomorrow}>{won ? "BUILD THE EMPIRE" : "TRY AGAIN TOMORROW"} <span>→</span></button>
+            <button onClick={tomorrow}>{won && campaignId !== "mediterranean" ? "MARCH TO THE NEXT CHAPTER" : won ? "RULE THE EMPIRE" : "TRY AGAIN TOMORROW"} <span>→</span></button>
             <em>Nothing remains but knowledge.</em>
           </div>
         </div>
