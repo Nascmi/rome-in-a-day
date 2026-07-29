@@ -79,6 +79,8 @@ When changing persistence:
 - Current resource totals
 - Remaining time
 - Worker assignments
+- Construction-worker assignment
+- Construction queue and project progress
 - Selected plan
 - Current midday event
 - Audio preferences

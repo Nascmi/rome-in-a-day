@@ -15,6 +15,20 @@ The game is live, public, installable, and synchronized with GitHub.
 
 ## Most Recent Gameplay Work
 
+The current pending release converts instant purchases into timed construction:
+
+- Added a four-project construction ledger.
+- Added dedicated construction-worker assignment.
+- Added one active build slot by default.
+- Added a second active slot at Architects level 3.
+- Added base durations to all thirteen buildings.
+- Added active, waiting, and progress states.
+- Added visible skyline scaffolding.
+- Campaign objectives now count completed structures only.
+- Sunset reports projects that remained under construction.
+- Rally the Crews now accelerates gathering and construction.
+- Updated the PWA cache to `rome-in-a-day-v7`.
+
 The current live release makes the clock the principal antagonist:
 
 - Added explicit Morning, Afternoon, Evening, and Final Light phases.

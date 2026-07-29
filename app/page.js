@@ -39,7 +39,7 @@ const DAY_EVENTS = [
 ];
 
 const LAST_PUSHES = [
-  { id: "rally", name: "Rally the Crews", icon: "⚑", desc: "+45% gathering until sunset." },
+  { id: "rally", name: "Rally the Crews", icon: "⚑", desc: "+45% gathering and construction until sunset." },
   { id: "salvage", name: "Strip the Scaffolds", icon: "⚒", desc: "Recover 30 of every material." },
   { id: "simplify", name: "Simplify the Plans", icon: "△", desc: "Construction costs 15% less until sunset." }
 ];
@@ -52,19 +52,19 @@ const JOBS = [
 ];
 
 const BUILDINGS = [
-  { id: "road", name: "Road", roman: "VIA", icon: "═", cost: { stone: 10 }, points: 8, max: 18, desc: "Every 3 roads makes everyone 5% faster." },
-  { id: "hut", name: "Insula", roman: "DOMUS", icon: "⌂", cost: { wood: 12, clay: 8 }, points: 20, max: 12, desc: "A humble home for the growing population." },
-  { id: "workshop", name: "Workshop", roman: "OFFICINA", icon: "⚒", cost: { wood: 22, stone: 15 }, points: 45, max: 6, desc: "Raises all gathering by 12% this day." },
-  { id: "aqueduct", name: "Aqueduct", roman: "AQUAEDUCTUS", icon: "⋂", cost: { stone: 38, clay: 25 }, points: 90, max: 4, desc: "Carries fresh water across the land." },
-  { id: "temple", name: "Temple", roman: "TEMPLUM", icon: "♜", cost: { wood: 25, stone: 55, clay: 30 }, points: 160, max: 2, desc: "A monument worthy of memory." },
-  { id: "colosseum", name: "Colosseum", roman: "COLOSSEUM", icon: "◉", cost: { wood: 90, stone: 160, clay: 110, food: 60 }, points: 600, max: 1, campaigns: ["rome", "mediterranean"], desc: "The crowning achievement of the capital." },
-  { id: "granary", name: "Granary", roman: "HORREUM", icon: "▤", cost: { wood: 95, clay: 120, food: 70 }, points: 340, max: 2, campaigns: ["italia"], desc: "Feeds the towns of a united peninsula." },
-  { id: "forum", name: "Great Forum", roman: "FORUM", icon: "▥", cost: { wood: 140, stone: 210, clay: 90, food: 80 }, points: 720, max: 1, campaigns: ["italia"], desc: "The civic heart of all Italia." },
-  { id: "fort", name: "Frontier Fort", roman: "CASTRUM", icon: "▰", cost: { wood: 190, stone: 260, clay: 120, food: 140 }, points: 900, max: 1, campaigns: ["italia"], desc: "Secures the roads and distant settlements." },
-  { id: "harbor", name: "Grand Harbor", roman: "PORTUS", icon: "≋", cost: { wood: 260, stone: 210, clay: 140, food: 180 }, points: 1100, max: 2, campaigns: ["mediterranean"], desc: "Opens a gateway across the inland sea." },
-  { id: "shipyard", name: "Imperial Shipyard", roman: "NAVALIA", icon: "ϟ", cost: { wood: 440, stone: 280, clay: 160, food: 250 }, points: 1700, max: 1, campaigns: ["mediterranean"], desc: "Constructs the fleet that binds the empire." },
-  { id: "lighthouse", name: "Great Lighthouse", roman: "PHARUS", icon: "♢", cost: { wood: 180, stone: 520, clay: 240, food: 170 }, points: 1900, max: 1, campaigns: ["mediterranean"], desc: "Guides Roman ships safely home." },
-  { id: "basilica", name: "Imperial Basilica", roman: "BASILICA", icon: "♚", cost: { wood: 300, stone: 620, clay: 300, food: 260 }, points: 2400, max: 1, campaigns: ["mediterranean"], desc: "The monumental seat of imperial power." }
+  { id: "road", name: "Road", roman: "VIA", icon: "═", seconds: 2, cost: { stone: 10 }, points: 8, max: 18, desc: "Every 3 roads makes everyone 5% faster." },
+  { id: "hut", name: "Insula", roman: "DOMUS", icon: "⌂", seconds: 3, cost: { wood: 12, clay: 8 }, points: 20, max: 12, desc: "A humble home for the growing population." },
+  { id: "workshop", name: "Workshop", roman: "OFFICINA", icon: "⚒", seconds: 5, cost: { wood: 22, stone: 15 }, points: 45, max: 6, desc: "Raises all gathering by 12% this day." },
+  { id: "aqueduct", name: "Aqueduct", roman: "AQUAEDUCTUS", icon: "⋂", seconds: 8, cost: { stone: 38, clay: 25 }, points: 90, max: 4, desc: "Carries fresh water across the land." },
+  { id: "temple", name: "Temple", roman: "TEMPLUM", icon: "♜", seconds: 12, cost: { wood: 25, stone: 55, clay: 30 }, points: 160, max: 2, desc: "A monument worthy of memory." },
+  { id: "colosseum", name: "Colosseum", roman: "COLOSSEUM", icon: "◉", seconds: 20, cost: { wood: 90, stone: 160, clay: 110, food: 60 }, points: 600, max: 1, campaigns: ["rome", "mediterranean"], desc: "The crowning achievement of the capital." },
+  { id: "granary", name: "Granary", roman: "HORREUM", icon: "▤", seconds: 9, cost: { wood: 95, clay: 120, food: 70 }, points: 340, max: 2, campaigns: ["italia"], desc: "Feeds the towns of a united peninsula." },
+  { id: "forum", name: "Great Forum", roman: "FORUM", icon: "▥", seconds: 18, cost: { wood: 140, stone: 210, clay: 90, food: 80 }, points: 720, max: 1, campaigns: ["italia"], desc: "The civic heart of all Italia." },
+  { id: "fort", name: "Frontier Fort", roman: "CASTRUM", icon: "▰", seconds: 20, cost: { wood: 190, stone: 260, clay: 120, food: 140 }, points: 900, max: 1, campaigns: ["italia"], desc: "Secures the roads and distant settlements." },
+  { id: "harbor", name: "Grand Harbor", roman: "PORTUS", icon: "≋", seconds: 18, cost: { wood: 260, stone: 210, clay: 140, food: 180 }, points: 1100, max: 2, campaigns: ["mediterranean"], desc: "Opens a gateway across the inland sea." },
+  { id: "shipyard", name: "Imperial Shipyard", roman: "NAVALIA", icon: "ϟ", seconds: 25, cost: { wood: 440, stone: 280, clay: 160, food: 250 }, points: 1700, max: 1, campaigns: ["mediterranean"], desc: "Constructs the fleet that binds the empire." },
+  { id: "lighthouse", name: "Great Lighthouse", roman: "PHARUS", icon: "♢", seconds: 28, cost: { wood: 180, stone: 520, clay: 240, food: 170 }, points: 1900, max: 1, campaigns: ["mediterranean"], desc: "Guides Roman ships safely home." },
+  { id: "basilica", name: "Imperial Basilica", roman: "BASILICA", icon: "♚", seconds: 32, cost: { wood: 300, stone: 620, clay: 300, food: 260 }, points: 2400, max: 1, campaigns: ["mediterranean"], desc: "The monumental seat of imperial power." }
 ];
 
 const UPGRADES = [
@@ -72,7 +72,7 @@ const UPGRADES = [
   { id: "rations", name: "Dawn Rations", icon: "◒", desc: "+2 starting workers", base: 4 },
   { id: "carts", name: "Better Carts", icon: "⊞", desc: "+25% tap power", base: 3 },
   { id: "foremen", name: "Foremen", icon: "⚑", desc: "Start with auto-assigned workers", base: 6 },
-  { id: "architects", name: "Architects", icon: "△", desc: "Buildings cost 5% less", base: 8 },
+  { id: "architects", name: "Architects", icon: "△", desc: "Buildings cost 5% less; level 3 adds a build slot", base: 8 },
   { id: "legion", name: "Builder Legion", icon: "Ⅼ", desc: "+4 starting workers", base: 12 }
 ];
 
@@ -116,6 +116,8 @@ function App() {
   const [won, setWon] = useState(false);
   const [resources, setResources] = useState({ wood: 15, stone: 12, clay: 8, food: 15 });
   const [workers, setWorkers] = useState({ wood: 0, stone: 0, clay: 0, food: 0 });
+  const [constructionWorkers, setConstructionWorkers] = useState(0);
+  const [constructionQueue, setConstructionQueue] = useState([]);
   const [buildings, setBuildings] = useState(emptyBuildings);
   const [message, setMessage] = useState("The field is empty. The sun is rising.");
   const [activeTab, setActiveTab] = useState("build");
@@ -126,13 +128,14 @@ function App() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [toast, setToast] = useState(null);
   const [dayEvent, setDayEvent] = useState(null);
-  const [dayModifier, setDayModifier] = useState({ gather: 1, cost: 1 });
+  const [dayModifier, setDayModifier] = useState({ gather: 1, cost: 1, construction: 1 });
   const [lastPush, setLastPush] = useState(null);
   const [announcedPhase, setAnnouncedPhase] = useState("dawn");
   const [lastResult, setLastResult] = useState(null);
   const latest = useRef({});
   const audioContext = useRef(null);
   const musicTimer = useRef(null);
+  const constructionQueueRef = useRef([]);
 
   const activeCampaign = CAMPAIGNS.find((campaign) => campaign.id === campaignId) || CAMPAIGNS[0];
   const activePlan = PLANS.find((plan) => plan.id === planId) || PLANS[0];
@@ -142,13 +145,16 @@ function App() {
   const suburaWorkers = districtUnlocked(DISTRICTS[3]) ? 4 : 0;
   const capitolineBonus = districtUnlocked(DISTRICTS[4]) ? 1.2 : 1;
   const totalWorkers = 4 + legacy.upgrades.rations * 2 + legacy.upgrades.legion * 4 + suburaWorkers + Math.min(8, Math.floor((legacy.total || 0) / 8));
-  const assigned = Object.values(workers).reduce((a, b) => a + b, 0);
+  const resourceWorkers = Object.values(workers).reduce((a, b) => a + b, 0);
+  const assigned = resourceWorkers + constructionWorkers;
   const idle = totalWorkers - assigned;
   const score = Math.floor(BUILDINGS.reduce((sum, b) => sum + buildings[b.id] * b.points, 0) * capitolineBonus);
   const roadBonus = 1 + Math.floor(buildings.road / 3) * 0.05;
   const workshopBonus = 1 + buildings.workshop * 0.12;
   const gatherRate = (1 + legacy.upgrades.hands * 0.15) * roadBonus * workshopBonus * forumBonus * activePlan.gather * dayModifier.gather;
   const effectiveCrew = (count) => count <= 8 ? count : 8 + Math.pow(count - 8, 0.72);
+  const constructionSpeed = (0.35 + effectiveCrew(constructionWorkers) * 0.22) * dayModifier.construction;
+  const buildSlots = legacy.upgrades.architects >= 3 ? 2 : 1;
   const campaignComplete = Object.entries(activeCampaign.goal).every(([id, needed]) => buildings[id] >= needed);
   const objectiveProgress = Object.entries(activeCampaign.goal).reduce((sum, [id, needed]) => sum + Math.min(1, buildings[id] / needed), 0) / Object.keys(activeCampaign.goal).length;
   const remainingObjectives = Object.entries(activeCampaign.goal)
@@ -239,8 +245,12 @@ function App() {
   }, [legacy, loaded]);
 
   useEffect(() => {
-    latest.current = { score, buildings, won, campaignId, time };
-  }, [score, buildings, won, campaignId, time]);
+    latest.current = { score, buildings, won, campaignId, time, constructionQueue };
+  }, [score, buildings, won, campaignId, time, constructionQueue]);
+
+  useEffect(() => {
+    constructionQueueRef.current = constructionQueue;
+  }, [constructionQueue]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -274,6 +284,10 @@ function App() {
       timeRemaining: current.time || 0,
       newProgressRecord,
       newTimeRecord,
+      underway: (current.constructionQueue || []).map((project) => ({
+        name: project.name,
+        progress: Math.floor(project.progress)
+      })),
       remaining: goalEntries
         .filter(([id, needed]) => (current.buildings[id] || 0) < needed)
         .map(([id, needed]) => ({
@@ -331,6 +345,35 @@ function App() {
     }, 500);
     return () => clearInterval(gather);
   }, [running, workers, gatherRate]);
+
+  useEffect(() => {
+    if (!running || constructionQueue.length === 0) return;
+    const construction = setInterval(() => {
+      const oldQueue = constructionQueueRef.current;
+      const updated = oldQueue.map((project, index) => index < buildSlots
+        ? { ...project, progress: Math.min(100, project.progress + (constructionSpeed / project.seconds) * 25) }
+        : project
+      );
+      const completed = updated.filter((project, index) => index < buildSlots && project.progress >= 100);
+      const remaining = updated.filter((project) => project.progress < 100);
+      constructionQueueRef.current = remaining;
+      setConstructionQueue(remaining);
+      if (completed.length > 0) {
+        setBuildings((old) => {
+          const next = { ...old };
+          completed.forEach((project) => { next[project.buildingId] += 1; });
+          return next;
+        });
+        const latestProject = completed[completed.length - 1];
+        setBuildFlash(latestProject.buildingId);
+        setTimeout(() => setBuildFlash(null), 650);
+        setMessage(`${latestProject.name} complete. ${completed.length > 1 ? "The skyline surges upward." : "The scaffolding falls away."}`);
+        playTone(118, 0.16, "sawtooth", 0.035);
+        setTimeout(() => playTone(165, 0.1, "square", 0.02), 90);
+      }
+    }, 250);
+    return () => clearInterval(construction);
+  }, [running, constructionQueue.length, constructionSpeed, buildSlots, playTone]);
 
   useEffect(() => {
     if (!running || !campaignComplete || won) return;
@@ -391,8 +434,10 @@ function App() {
     setMessage("Daylight is precious. Put every pair of hands to work.");
     if (legacy.upgrades.foremen > 0 && assigned === 0) {
       const auto = { wood: 0, stone: 0, clay: 0, food: 0 };
-      for (let i = 0; i < totalWorkers; i++) auto[JOBS[i % 4].id]++;
+      const buildersForConstruction = Math.max(1, Math.floor(totalWorkers * 0.18));
+      for (let i = 0; i < totalWorkers - buildersForConstruction; i++) auto[JOBS[i % 4].id]++;
       setWorkers(auto);
+      setConstructionWorkers(buildersForConstruction);
     }
   };
 
@@ -402,6 +447,15 @@ function App() {
       if (amount > 0 && idle <= 0) return old;
       if (amount < 0 && old[job] <= 0) return old;
       return { ...old, [job]: old[job] + amount };
+    });
+  };
+
+  const assignConstruction = (amount) => {
+    if (!running) startDay();
+    setConstructionWorkers((old) => {
+      if (amount > 0 && idle <= 0) return old;
+      if (amount < 0 && old <= 0) return old;
+      return old + amount;
     });
   };
 
@@ -421,21 +475,31 @@ function App() {
     Math.max(1, Math.ceil(amount * Math.max(0.65, Math.max(0.5, 1 - legacy.upgrades.architects * 0.05) * activePlan.cost * dayModifier.cost) * (activeCampaign.costScale || 1)))
   ]));
   const canAfford = (building) => Object.entries(costFor(building)).every(([key, amount]) => resources[key] >= amount);
+  const queuedCount = (buildingId) => constructionQueue.filter((project) => project.buildingId === buildingId).length;
 
   const build = (building) => {
     if (!running) startDay();
-    if (!canAfford(building) || buildings[building.id] >= building.max) return;
+    if (!canAfford(building) || buildings[building.id] + queuedCount(building.id) >= building.max) return;
+    if (constructionQueue.length >= 4) {
+      setMessage("The construction ledger is full. Finish a project before ordering another.");
+      return;
+    }
     setResources((old) => {
       const next = { ...old };
       Object.entries(costFor(building)).forEach(([key, amount]) => next[key] -= amount);
       return next;
     });
-    setBuildings((old) => ({ ...old, [building.id]: old[building.id] + 1 }));
-    setBuildFlash(building.id);
-    setTimeout(() => setBuildFlash(null), 650);
-    playTone(building.id === "colosseum" ? 110 : 95, 0.16, "sawtooth", 0.035);
-    setTimeout(() => playTone(145, 0.1, "square", 0.02), 90);
-    setMessage(`${building.name} complete. Rome reaches a little higher.`);
+    const project = {
+      queueId: `${Date.now()}-${Math.random()}`,
+      buildingId: building.id,
+      name: building.name,
+      icon: building.icon,
+      seconds: building.seconds,
+      progress: 0
+    };
+    setConstructionQueue((old) => [...old, project]);
+    setMessage(`${building.name} ordered. Move builders to construction to raise it before sunset.`);
+    playTone(95, 0.1, "square", 0.025);
   };
 
   const tomorrow = () => {
@@ -447,9 +511,11 @@ function App() {
     setTime(nextCampaign.dayLength);
     setResources({ wood: 15 + palatineBonus, stone: 12 + palatineBonus, clay: 8 + palatineBonus, food: 15 + palatineBonus });
     setWorkers({ wood: 0, stone: 0, clay: 0, food: 0 });
+    setConstructionWorkers(0);
+    setConstructionQueue([]);
     setBuildings(emptyBuildings);
     setDayEvent(null);
-    setDayModifier({ gather: 1, cost: 1 });
+    setDayModifier({ gather: 1, cost: 1, construction: 1 });
     setLastPush(null);
     setAnnouncedPhase("dawn");
     setLastResult(null);
@@ -485,7 +551,7 @@ function App() {
     if (lastPush || !running || time > 20) return;
     setLastPush(push.id);
     if (push.id === "rally") {
-      setDayModifier((old) => ({ ...old, gather: old.gather * 1.45 }));
+      setDayModifier((old) => ({ ...old, gather: old.gather * 1.45, construction: old.construction * 1.45 }));
     } else if (push.id === "salvage") {
       setResources((old) => Object.fromEntries(Object.entries(old).map(([key, amount]) => [key, amount + 30])));
     } else {
@@ -503,9 +569,11 @@ function App() {
     setTime(campaign.dayLength);
     setResources({ wood: 15 + palatineBonus, stone: 12 + palatineBonus, clay: 8 + palatineBonus, food: 15 + palatineBonus });
     setWorkers({ wood: 0, stone: 0, clay: 0, food: 0 });
+    setConstructionWorkers(0);
+    setConstructionQueue([]);
     setBuildings(emptyBuildings);
     setDayEvent(null);
-    setDayModifier({ gather: 1, cost: 1 });
+    setDayModifier({ gather: 1, cost: 1, construction: 1 });
     setLastPush(null);
     setAnnouncedPhase("dawn");
     setLastResult(null);
@@ -548,10 +616,15 @@ function App() {
         <div className="sun" />
         <div className="horizon">
           <div className="city">
-            {cityItems.length === 0 && <div className="emptyCity"><span>⅋</span><p>An empty field awaits.</p></div>}
+            {cityItems.length === 0 && constructionQueue.length === 0 && <div className="emptyCity"><span>⅋</span><p>An empty field awaits.</p></div>}
             {cityItems.map((item, index) => (
               <div className={`cityBuilding ${item.id} ${buildFlash === item.id && index === cityItems.length - 1 ? "buildingNow" : ""}`} key={item.key} style={{ "--i": index }}>
                 <span>{item.icon}</span>
+              </div>
+            ))}
+            {constructionQueue.slice(0, buildSlots).map((project, index) => (
+              <div className={`scaffold scaffold-${project.buildingId}`} key={project.queueId} style={{ "--scaffold": index, "--height": `${25 + project.progress * 0.75}%` }}>
+                <span>{project.icon}</span><i style={{ height: `${project.progress}%` }} />
               </div>
             ))}
             {running && Array.from({ length: Math.min(10, Math.max(2, assigned)) }).map((_, index) => (
@@ -612,6 +685,11 @@ function App() {
               <div><button onClick={() => assign(job.id, -1)}>−</button><b>{workers[job.id]}</b><button onClick={() => assign(job.id, 1)}>+</button></div>
             </div>
           ))}
+          <div className="job constructionJob">
+            <span className="jobDot" />
+            <span>Construction<small>{constructionSpeed.toFixed(2)}× build speed</small></span>
+            <div><button onClick={() => assignConstruction(-1)}>−</button><b>{constructionWorkers}</b><button onClick={() => assignConstruction(1)}>+</button></div>
+          </div>
           {!running && !ended && (
             <>
               <div className="planLabel">PRE-DAWN ORDERS</div>
@@ -634,17 +712,39 @@ function App() {
             <button className={activeTab === "chronicle" ? "active" : ""} onClick={() => setActiveTab("chronicle")}>CHRONICLE</button>
           </nav>
 
+          {activeTab === "build" && (
+            <div className="constructionPanel">
+              <div className="constructionHead">
+                <span>CONSTRUCTION LEDGER</span>
+                <strong>{buildSlots} active slot{buildSlots > 1 ? "s" : ""} · {constructionQueue.length}/4 ordered</strong>
+              </div>
+              {constructionQueue.length === 0 ? (
+                <div className="emptyQueue"><span>⌁</span><small>Purchase a project to begin its foundation.</small></div>
+              ) : (
+                <div className="queueProjects">
+                  {constructionQueue.map((project, index) => (
+                    <div className={`queueProject ${index < buildSlots ? "active" : "waiting"}`} key={project.queueId}>
+                      <span>{project.icon}</span>
+                      <div><strong>{project.name}</strong><small>{index < buildSlots ? `${Math.floor(project.progress)}% · ${constructionSpeed.toFixed(2)}× speed` : "WAITING FOR A BUILD SLOT"}</small><i><b style={{ width: `${project.progress}%` }} /></i></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === "build" ? (
             <div className="cards">
               {BUILDINGS.filter((building) => !building.campaigns || building.campaigns.includes(campaignId)).map((building) => {
                 const affordable = canAfford(building);
-                const capped = buildings[building.id] >= building.max;
+                const inQueue = queuedCount(building.id);
+                const capped = buildings[building.id] + inQueue >= building.max;
                 const objectiveNeed = activeCampaign.goal[building.id];
                 return (
                   <button className={`buildCard ${affordable && !capped ? "ready" : ""} ${objectiveNeed ? "objectiveBuild" : ""}`} key={building.id} onClick={() => build(building)} disabled={capped}>
                     <span className={`buildingIcon ${building.id}`}>{building.icon}</span>
-                    <span className="buildCopy"><small>{building.roman}</small><strong>{building.name}</strong><em>{building.desc}</em><span className="cost">{capped ? "COMPLETE" : formatCost(costFor(building))}</span></span>
-                    <b>{objectiveNeed ? `${buildings[building.id]}/${objectiveNeed} GOAL` : `${buildings[building.id]}/${building.max}`}</b>
+                    <span className="buildCopy"><small>{building.roman}</small><strong>{building.name}</strong><em>{building.desc}</em><span className="cost">{capped && inQueue ? `${inQueue} QUEUED` : inQueue ? `${inQueue} queued · ${formatCost(costFor(building))}` : capped ? "COMPLETE" : `${formatCost(costFor(building))} · ${building.seconds}s base`}</span></span>
+                    <b>{objectiveNeed ? `${buildings[building.id]}${inQueue ? `+${inQueue}` : ""}/${objectiveNeed} GOAL` : `${buildings[building.id]}${inQueue ? `+${inQueue}` : ""}/${building.max}`}</b>
                   </button>
                 );
               })}
@@ -735,6 +835,9 @@ function App() {
             {!won && lastResult?.remaining?.length > 0 && (
               <div className="failureReport">
                 <small>UNFINISHED BEFORE SUNSET</small>
+                {lastResult.underway?.slice(0, 2).map((project) => (
+                  <div className="underwayResult" key={`${project.name}-${project.progress}`}><span>{project.name}</span><strong>{project.progress}% built</strong></div>
+                ))}
                 {lastResult.remaining.slice(0, 4).map((objective) => (
                   <div key={objective.name}><span>{objective.name}</span><strong>{objective.remaining} remaining</strong></div>
                 ))}

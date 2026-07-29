@@ -36,15 +36,38 @@ Later campaigns are not larger copies of Rome. They have different goals, major 
 2. Select pre-dawn orders.
 3. Begin the day.
 4. Assign builders to timber, stone, clay, and food.
-5. Tap resource panels for supplemental gathering.
-6. Construct roads, infrastructure, civic buildings, and campaign projects.
-7. React to a midday event.
-8. Read the evening pressure and commit to the remaining objectives.
-9. Choose one final order near sunset.
-10. Complete every campaign objective before sunset or fail productively.
-11. Read the sunset diagnosis and personal-record result.
-12. Spend laurels on permanent upgrades.
-13. Begin another attempt.
+5. Assign part of the workforce to construction.
+6. Tap resource panels for supplemental gathering.
+7. Order roads, infrastructure, civic buildings, and campaign projects.
+8. Manage active build slots and the construction queue.
+9. React to a midday event.
+10. Read the evening pressure and commit to the remaining objectives.
+11. Choose one final order near sunset.
+12. Complete every campaign objective before sunset or fail productively.
+13. Read the sunset diagnosis and personal-record result.
+14. Spend laurels on permanent upgrades.
+15. Begin another attempt.
+
+## Construction
+
+Purchasing a building pays its resources and places a project in the construction ledger. It does not immediately satisfy an objective.
+
+- The ledger holds up to four ordered projects.
+- One project builds actively by default.
+- Architects level 3 unlocks a second simultaneous build slot.
+- Waiting projects retain their order.
+- Assigning workers to Construction increases build speed.
+- Projects continue slowly with no assigned construction workers.
+- Completed projects leave scaffolding and become permanent skyline buildings for the remainder of the day.
+- Campaign objectives count only completed buildings.
+
+Base durations range from two seconds for a road to 32 seconds for the Imperial Basilica. Actual time depends on the assigned construction crew and temporary modifiers.
+
+Construction speed:
+
+```text
+(0.35 + effective construction crew × 0.22) × temporary construction modifier
+```
 
 ## Emotional Arc of the Day
 
@@ -140,7 +163,7 @@ The event is selected from the current attempt number and campaign chapter. It t
 
 At 20 seconds remaining, the player may issue exactly one final order:
 
-- Rally the Crews: gathering is 45% faster until sunset.
+- Rally the Crews: gathering and construction are 45% faster until sunset.
 - Strip the Scaffolds: immediately recover 30 of every resource.
 - Simplify the Plans: construction costs are 15% lower until sunset.
 
@@ -195,6 +218,7 @@ The sunset report explains:
 
 - Completion percentage
 - Up to four unfinished objective counts
+- Projects still under construction and their final percentages
 - Laurels earned
 - Whether the attempt set a progress record
 - Whether a victory set a fastest-completion record

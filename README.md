@@ -18,7 +18,7 @@ The game is touch-friendly, installable as a Progressive Web App, and playable o
 
 - Three campaign chapters: Rome, Italia, and Mare Nostrum
 - Four gathered resources: timber, stone, clay, and food
-- Fourteen construction projects, including chapter-specific major works
+- Thirteen construction projects, including chapter-specific major works
 - Permanent builder and engineering upgrades
 - Three pre-dawn strategies with meaningful tradeoffs
 - Midday events that alter resources, gathering, or costs

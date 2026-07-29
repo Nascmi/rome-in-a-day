@@ -61,6 +61,8 @@ Run state exists only in React memory:
 - Running and ended flags
 - Resources
 - Worker assignments
+- Construction-worker assignment
+- Construction queue, progress, and active slots
 - Buildings constructed this attempt
 - Current event and temporary modifiers
 - Audio and install prompt state
@@ -103,6 +105,26 @@ The final cost combines:
 - Campaign cost scale
 
 Every final resource value is rounded upward and cannot be lower than one.
+
+### Construction progress
+
+Each building definition includes a base `seconds` value.
+
+The construction ledger accepts four projects. Architects level 3 allows the first two projects to advance simultaneously; otherwise only the first advances.
+
+Every 250 milliseconds:
+
+```text
+progress gain = (construction speed / base seconds) × 25
+```
+
+Construction speed combines:
+
+- A baseline of `0.35`
+- Effective assigned construction crew multiplied by `0.22`
+- Temporary construction modifiers
+
+When progress reaches 100%, the project is removed from the queue and its completed building count increments. Campaign victory only reads completed counts.
 
 ### Day phases
 
@@ -150,7 +172,7 @@ Browsers require user interaction before audio can begin. The interface therefor
 3. Fall back to the cached resource when offline.
 4. Fall back to `/` when no exact cached match exists.
 
-The current cache name is `rome-in-a-day-v5`. Increment this value when a release requires old offline assets to be discarded.
+The current cache name is `rome-in-a-day-v7`. Increment this value when a release requires old offline assets to be discarded.
 
 ## Responsive Design
 
