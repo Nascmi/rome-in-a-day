@@ -59,6 +59,7 @@ The run snapshot includes:
 - Four resource totals
 - Four resource-worker assignments
 - Construction-worker assignment
+- Temporary Laborer, Mason, Hauler, and Engineer assignments
 - Construction queue and project percentages
 - Completed building counts
 - Midday event
@@ -67,6 +68,8 @@ The run snapshot includes:
 - Last announced day phase
 
 Snapshots are written shortly after meaningful state changes, including construction progress ticks.
+
+Professions belong to the active day. They survive closing and resuming that attempt, but are cleared when the player advances to tomorrow or starts a different campaign.
 
 ## Resume Behavior
 

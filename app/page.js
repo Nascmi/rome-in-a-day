@@ -1,31 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  CAMPAIGNS,
+  createSaveEnvelope,
+  EMPTY_PROFESSIONS,
+  isCampaignComplete,
+  LEGACY_SAVE_KEY,
+  loadSave,
+  resetSave,
+  restoreRunState,
+  SAVE_KEY,
+  professionEffects,
+  upgradeCost
+} from "./game-core";
 
 const DAY_LENGTH = 90;
-const LEGACY_SAVE_KEY = "rome-in-a-day-v1";
-const SAVE_KEY = "rome-in-a-day-v2";
-
-const CAMPAIGNS = [
-  {
-    id: "rome", chapter: "I", name: "Rome", subtitle: "Raise the Eternal City",
-    dayLength: 90, unlock: null, reward: 25,
-    goal: { colosseum: 1 },
-    brief: "Crown the city with the Colosseum before sunset."
-  },
-  {
-    id: "italia", chapter: "II", name: "Italia", subtitle: "Unite the Peninsula",
-    dayLength: 125, unlock: "rome", reward: 55, costScale: 1.65,
-    goal: { road: 18, hut: 12, workshop: 6, aqueduct: 4, temple: 2, granary: 2, forum: 1, fort: 1 },
-    brief: "Unite Italia with roads, granaries, a forum, and a fortified frontier."
-  },
-  {
-    id: "mediterranean", chapter: "III", name: "Mare Nostrum", subtitle: "Command the Inland Sea",
-    dayLength: 180, unlock: "italia", reward: 90, costScale: 1.9,
-    goal: { road: 18, workshop: 6, aqueduct: 4, temple: 2, colosseum: 1, harbor: 2, shipyard: 1, lighthouse: 1, basilica: 1 },
-    brief: "Command the sea with harbors, a shipyard, lighthouse, and imperial basilica."
-  }
-];
 
 const PLANS = [
   { id: "balanced", name: "Measured Plans", icon: "△", desc: "A full day with no penalties.", gather: 1, cost: 1, time: 0 },
@@ -50,6 +40,13 @@ const JOBS = [
   { id: "stone", name: "Stone", icon: "◆", color: "#8b8d88" },
   { id: "clay", name: "Clay", icon: "●", color: "#b75e3e" },
   { id: "food", name: "Food", icon: "▲", color: "#c49b44" }
+];
+
+const PROFESSIONS = [
+  { id: "laborers", name: "Laborers", icon: "♣", desc: "Gather timber and clay efficiently." },
+  { id: "masons", name: "Masons", icon: "◆", desc: "Raise stone structures faster." },
+  { id: "haulers", name: "Haulers", icon: "⊞", desc: "Improve delivery and large-crew coordination." },
+  { id: "engineers", name: "Engineers", icon: "△", desc: "Accelerate major works; four open a second build slot." }
 ];
 
 const BUILDINGS = [
@@ -106,10 +103,6 @@ function formatCost(cost) {
   return Object.entries(cost).map(([key, value]) => `${value} ${key}`).join(" · ");
 }
 
-function upgradeCost(upgrade, level) {
-  return Math.ceil(upgrade.base * Math.pow(1.75, level));
-}
-
 function App() {
   const [legacy, setLegacy] = useState(freshLegacy);
   const [loaded, setLoaded] = useState(false);
@@ -122,6 +115,7 @@ function App() {
   const [resources, setResources] = useState({ wood: 15, stone: 12, clay: 8, food: 15 });
   const [workers, setWorkers] = useState({ wood: 0, stone: 0, clay: 0, food: 0 });
   const [constructionWorkers, setConstructionWorkers] = useState(0);
+  const [professions, setProfessions] = useState(EMPTY_PROFESSIONS);
   const [constructionQueue, setConstructionQueue] = useState([]);
   const [buildings, setBuildings] = useState(emptyBuildings);
   const [message, setMessage] = useState("The field is empty. The sun is rising.");
@@ -158,11 +152,18 @@ function App() {
   const score = Math.floor(BUILDINGS.reduce((sum, b) => sum + buildings[b.id] * b.points, 0) * capitolineBonus);
   const roadBonus = 1 + Math.floor(buildings.road / 3) * 0.05;
   const workshopBonus = 1 + buildings.workshop * 0.12;
-  const gatherRate = (1 + legacy.upgrades.hands * 0.15) * roadBonus * workshopBonus * forumBonus * activePlan.gather * dayModifier.gather;
-  const effectiveCrew = (count) => count <= 8 ? count : 8 + Math.pow(count - 8, 0.72);
-  const constructionSpeed = (0.35 + effectiveCrew(constructionWorkers) * 0.22) * dayModifier.construction;
-  const buildSlots = legacy.upgrades.architects >= 3 ? 2 : 1;
-  const campaignComplete = Object.entries(activeCampaign.goal).every(([id, needed]) => buildings[id] >= needed);
+  const professionBonus = professionEffects(professions, totalWorkers);
+  const gatherRate = (1 + legacy.upgrades.hands * 0.15) * roadBonus * workshopBonus * forumBonus * activePlan.gather * dayModifier.gather * professionBonus.delivery;
+  const resourceGatherRate = (jobId) => gatherRate * (jobId === "wood" || jobId === "clay" ? professionBonus.laborerGather : 1);
+  const effectiveCrew = (count) => count <= 8 ? count : 8 + Math.pow(count - 8, professionBonus.coordinationExponent);
+  const constructionSpeed = (project) => {
+    const building = project ? BUILDINGS.find((item) => item.id === project.buildingId) : null;
+    const masonryBonus = building?.cost.stone ? professionBonus.masonry : 1;
+    const engineeringBonus = building?.points >= 600 ? professionBonus.engineering : 1;
+    return (0.35 + effectiveCrew(constructionWorkers) * 0.22) * dayModifier.construction * masonryBonus * engineeringBonus;
+  };
+  const buildSlots = legacy.upgrades.architects >= 3 || professionBonus.engineerSlot ? 2 : 1;
+  const campaignComplete = isCampaignComplete(activeCampaign, buildings);
   const objectiveProgress = Object.entries(activeCampaign.goal).reduce((sum, [id, needed]) => sum + Math.min(1, buildings[id] / needed), 0) / Object.keys(activeCampaign.goal).length;
   const remainingObjectives = Object.entries(activeCampaign.goal)
     .filter(([id, needed]) => buildings[id] < needed)
@@ -201,32 +202,15 @@ function App() {
 
   useEffect(() => {
     try {
-      const envelope = JSON.parse(localStorage.getItem(SAVE_KEY));
-      const legacySave = envelope?.version === 2 ? envelope.legacy : JSON.parse(localStorage.getItem(LEGACY_SAVE_KEY));
-      if (legacySave) {
-        const completedCampaigns = legacySave.completedCampaigns || (legacySave.victories > 0 ? ["rome"] : []);
-        const upgrades = Object.fromEntries(UPGRADES.map((upgrade) => [
-          upgrade.id,
-          Math.max(0, Math.min(upgrade.max, Number(legacySave.upgrades?.[upgrade.id]) || 0))
-        ]));
-        setLegacy({
-          ...freshLegacy,
-          ...legacySave,
-          completedCampaigns,
-          campaignStats: legacySave.campaignStats || {},
-          achievements: legacySave.achievements || [],
-          upgrades
-        });
-        if (envelope?.version === 2) {
-          setSoundOn(envelope.preferences?.soundOn ?? true);
-          setMusicOn(envelope.preferences?.musicOn ?? false);
-        }
-        if (envelope?.version === 2 && envelope.run?.running && envelope.run.time > 0) {
-          setPendingRun(envelope.run);
-        } else if (completedCampaigns.includes("rome")) {
-          setCampaignId(completedCampaigns.includes("italia") ? "mediterranean" : "italia");
-          setTime(completedCampaigns.includes("italia") ? CAMPAIGNS[2].dayLength : CAMPAIGNS[1].dayLength);
-        }
+      const save = loadSave(localStorage, freshLegacy, UPGRADES);
+      setLegacy(save.legacy);
+      setSoundOn(save.preferences.soundOn);
+      setMusicOn(save.preferences.musicOn);
+      if (save.run) {
+        setPendingRun(save.run);
+      } else if (save.legacy.completedCampaigns.includes("rome")) {
+        setCampaignId(save.legacy.completedCampaigns.includes("italia") ? "mediterranean" : "italia");
+        setTime(save.legacy.completedCampaigns.includes("italia") ? CAMPAIGNS[2].dayLength : CAMPAIGNS[1].dayLength);
       }
     } catch {}
     setLoaded(true);
@@ -270,6 +254,7 @@ function App() {
         resources,
         workers,
         constructionWorkers,
+        professions,
         constructionQueue,
         buildings,
         dayEvent,
@@ -277,15 +262,15 @@ function App() {
         lastPush,
         announcedPhase
       } : pendingRun;
-      localStorage.setItem(SAVE_KEY, JSON.stringify({
-        version: 2,
+      localStorage.setItem(SAVE_KEY, JSON.stringify(createSaveEnvelope({
         legacy,
-        preferences: { soundOn, musicOn },
+        soundOn,
+        musicOn,
         run: activeRun || null
-      }));
+      })));
     }, 100);
     return () => clearTimeout(timer);
-  }, [loaded, legacy, soundOn, musicOn, running, pendingRun, campaignId, planId, time, resources, workers, constructionWorkers, constructionQueue, buildings, dayEvent, dayModifier, lastPush, announcedPhase]);
+  }, [loaded, legacy, soundOn, musicOn, running, pendingRun, campaignId, planId, time, resources, workers, constructionWorkers, professions, constructionQueue, buildings, dayEvent, dayModifier, lastPush, announcedPhase]);
 
   useEffect(() => {
     latest.current = { score, buildings, won, campaignId, time, constructionQueue };
@@ -381,20 +366,20 @@ function App() {
       setResources((old) => {
         const next = { ...old };
         JOBS.forEach((job) => {
-          next[job.id] += effectiveCrew(workers[job.id]) * gatherRate * 0.5;
+          next[job.id] += effectiveCrew(workers[job.id]) * resourceGatherRate(job.id) * 0.5;
         });
         return next;
       });
     }, 500);
     return () => clearInterval(gather);
-  }, [running, workers, gatherRate]);
+  }, [running, workers, gatherRate, professionBonus.laborerGather, professionBonus.coordinationExponent]);
 
   useEffect(() => {
     if (!running || constructionQueue.length === 0) return;
     const construction = setInterval(() => {
       const oldQueue = constructionQueueRef.current;
       const updated = oldQueue.map((project, index) => index < buildSlots
-        ? { ...project, progress: Math.min(100, project.progress + (constructionSpeed / project.seconds) * 25) }
+        ? { ...project, progress: Math.min(100, project.progress + (constructionSpeed(project) / project.seconds) * 25) }
         : project
       );
       const completed = updated.filter((project, index) => index < buildSlots && project.progress >= 100);
@@ -416,7 +401,7 @@ function App() {
       }
     }, 250);
     return () => clearInterval(construction);
-  }, [running, constructionQueue.length, constructionSpeed, buildSlots, playTone]);
+  }, [running, constructionQueue.length, constructionWorkers, professions, dayModifier.construction, buildSlots, playTone]);
 
   useEffect(() => {
     if (!running || !campaignComplete || won) return;
@@ -502,6 +487,15 @@ function App() {
     });
   };
 
+  const assignProfession = (profession, amount) => {
+    if (!running) startDay();
+    setProfessions((old) => {
+      if (amount > 0 && professionBonus.untrained <= 0) return old;
+      if (amount < 0 && old[profession] <= 0) return old;
+      return { ...old, [profession]: old[profession] + amount };
+    });
+  };
+
   const tapGather = (job, event) => {
     if (!running) startDay();
     const amount = (1.5 + legacy.upgrades.carts * 0.5) * roadBonus * (activePlan.tap || 1);
@@ -555,6 +549,7 @@ function App() {
     setResources({ wood: 15 + palatineBonus, stone: 12 + palatineBonus, clay: 8 + palatineBonus, food: 15 + palatineBonus });
     setWorkers({ wood: 0, stone: 0, clay: 0, food: 0 });
     setConstructionWorkers(0);
+    setProfessions(EMPTY_PROFESSIONS);
     setConstructionQueue([]);
     setBuildings(emptyBuildings);
     setDayEvent(null);
@@ -594,18 +589,20 @@ function App() {
   const restoreRun = (run) => {
     const campaign = CAMPAIGNS.find((item) => item.id === run.campaignId) || CAMPAIGNS[0];
     const plan = PLANS.find((item) => item.id === run.planId) || PLANS[0];
+    const restored = restoreRunState(run, campaign, plan, emptyBuildings);
     setCampaignId(campaign.id);
     setPlanId(plan.id);
-    setTime(Math.max(1, Math.min(run.time || campaign.dayLength + plan.time, campaign.dayLength + plan.time)));
-    setResources({ wood: 0, stone: 0, clay: 0, food: 0, ...(run.resources || {}) });
-    setWorkers({ wood: 0, stone: 0, clay: 0, food: 0, ...(run.workers || {}) });
-    setConstructionWorkers(Math.max(0, run.constructionWorkers || 0));
-    setConstructionQueue(Array.isArray(run.constructionQueue) ? run.constructionQueue.slice(0, 4) : []);
-    setBuildings({ ...emptyBuildings, ...(run.buildings || {}) });
-    setDayEvent(run.dayEvent || null);
-    setDayModifier({ gather: 1, cost: 1, construction: 1, ...(run.dayModifier || {}) });
-    setLastPush(run.lastPush || null);
-    setAnnouncedPhase(run.announcedPhase || "dawn");
+    setTime(restored.time);
+    setResources(restored.resources);
+    setWorkers(restored.workers);
+    setConstructionWorkers(restored.constructionWorkers);
+    setProfessions(restored.professions);
+    setConstructionQueue(restored.constructionQueue);
+    setBuildings(restored.buildings);
+    setDayEvent(restored.dayEvent);
+    setDayModifier(restored.dayModifier);
+    setLastPush(restored.lastPush);
+    setAnnouncedPhase(restored.announcedPhase);
     setEnded(false);
     setWon(false);
     setLastResult(null);
@@ -631,6 +628,7 @@ function App() {
     setResources({ wood: 15, stone: 12, clay: 8, food: 15 });
     setWorkers({ wood: 0, stone: 0, clay: 0, food: 0 });
     setConstructionWorkers(0);
+    setProfessions(EMPTY_PROFESSIONS);
     setConstructionQueue([]);
     setBuildings(emptyBuildings);
     setDayEvent(null);
@@ -643,8 +641,7 @@ function App() {
     setActiveTab("build");
     setMessage("A new timeline begins with four builders and an empty field.");
     setShowReset(false);
-    localStorage.removeItem(SAVE_KEY);
-    localStorage.removeItem(LEGACY_SAVE_KEY);
+    resetSave(localStorage);
   };
 
   const chooseLastPush = (push) => {
@@ -670,6 +667,7 @@ function App() {
     setResources({ wood: 15 + palatineBonus, stone: 12 + palatineBonus, clay: 8 + palatineBonus, food: 15 + palatineBonus });
     setWorkers({ wood: 0, stone: 0, clay: 0, food: 0 });
     setConstructionWorkers(0);
+    setProfessions(EMPTY_PROFESSIONS);
     setConstructionQueue([]);
     setBuildings(emptyBuildings);
     setDayEvent(null);
@@ -781,14 +779,27 @@ function App() {
           {JOBS.map((job) => (
             <div className="job" key={job.id}>
               <span className="jobDot" style={{ background: job.color }} />
-              <span>{job.name}<small>{(effectiveCrew(workers[job.id]) * gatherRate).toFixed(1)}/s</small></span>
+              <span>{job.name}<small>{(effectiveCrew(workers[job.id]) * resourceGatherRate(job.id)).toFixed(1)}/s</small></span>
               <div><button onClick={() => assign(job.id, -1)}>−</button><b>{workers[job.id]}</b><button onClick={() => assign(job.id, 1)}>+</button></div>
             </div>
           ))}
           <div className="job constructionJob">
             <span className="jobDot" />
-            <span>Construction<small>{constructionSpeed.toFixed(2)}× build speed</small></span>
+            <span>Construction<small>{constructionSpeed(null).toFixed(2)}× base speed</small></span>
             <div><button onClick={() => assignConstruction(-1)}>−</button><b>{constructionWorkers}</b><button onClick={() => assignConstruction(1)}>+</button></div>
+          </div>
+          <div className="professionHead">
+            <span>DAY PROFESSIONS</span>
+            <strong>{professionBonus.untrained} untrained</strong>
+          </div>
+          <div className="professionGrid">
+            {PROFESSIONS.map((profession) => (
+              <div className="profession" key={profession.id}>
+                <span>{profession.icon}</span>
+                <div><strong>{profession.name}</strong><small>{profession.desc}</small></div>
+                <aside><button onClick={() => assignProfession(profession.id, -1)}>−</button><b>{professions[profession.id]}</b><button onClick={() => assignProfession(profession.id, 1)}>+</button></aside>
+              </div>
+            ))}
           </div>
           {!running && !ended && (
             <>
@@ -825,7 +836,7 @@ function App() {
                   {constructionQueue.map((project, index) => (
                     <div className={`queueProject ${index < buildSlots ? "active" : "waiting"}`} key={project.queueId}>
                       <span>{project.icon}</span>
-                      <div><strong>{project.name}</strong><small>{index < buildSlots ? `${Math.floor(project.progress)}% · ${constructionSpeed.toFixed(2)}× speed` : "WAITING FOR A BUILD SLOT"}</small><i><b style={{ width: `${project.progress}%` }} /></i></div>
+                      <div><strong>{project.name}</strong><small>{index < buildSlots ? `${Math.floor(project.progress)}% · ${constructionSpeed(project).toFixed(2)}× speed` : "WAITING FOR A BUILD SLOT"}</small><i><b style={{ width: `${project.progress}%` }} /></i></div>
                     </div>
                   ))}
                 </div>
