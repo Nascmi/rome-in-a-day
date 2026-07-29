@@ -22,6 +22,133 @@ export const CAMPAIGNS = [
   }
 ];
 
+export const CITY_STAGES = [
+  {
+    id: "settlement", name: "First Settlement", dayLength: 60, reward: 8,
+    brief: "Lay roads, raise homes, and establish the first workshop.",
+    goal: { road: 3, hut: 2, workshop: 1 },
+    fact: "The Forum valley began as marshland. It was reclaimed in the late 7th century B.C. before becoming the center of Roman public life.",
+    source: "Parco archeologico del Colosseo"
+  },
+  {
+    id: "market", name: "Market District", dayLength: 66, reward: 10,
+    brief: "Rebuild the settlement and establish Rome’s market.",
+    goal: { road: 5, hut: 3, workshop: 1, market: 1 },
+    fact: "Rome developed specialized markets. The Forum Holitorium was reserved for the trade of vegetables and legumes.",
+    source: "Roma Capitale"
+  },
+  {
+    id: "housing", name: "Residential Rome", dayLength: 72, reward: 13,
+    brief: "Rebuild the market quarter and shelter a growing population.",
+    goal: { road: 7, hut: 7, workshop: 2, market: 1 },
+    fact: "Many Romans lived in rented apartment buildings called insulae. Crowding and scarce land pushed housing upward, sometimes through many floors.",
+    source: "Roma Capitale"
+  },
+  {
+    id: "civic", name: "Civic District", dayLength: 80, reward: 16,
+    brief: "Add the Forum where commerce, law, religion, and public life meet.",
+    goal: { road: 9, hut: 8, workshop: 3, market: 1, forum: 1 },
+    fact: "The Roman Forum was not built from one plan. Political, religious, commercial, and judicial monuments accumulated there across centuries.",
+    source: "Parco archeologico del Colosseo"
+  },
+  {
+    id: "water", name: "Water & Faith", dayLength: 89, reward: 20,
+    brief: "Bring water to Rome and raise temples worthy of the city.",
+    goal: { road: 11, hut: 9, workshop: 3, market: 1, forum: 1, aqueduct: 2, temple: 1 },
+    fact: "Rome’s first aqueduct, the Aqua Appia, was built in 312 B.C. Almost its entire course ran underground.",
+    source: "Frontinus and the Topographical Dictionary of Ancient Rome"
+  },
+  {
+    id: "senate", name: "Senate District", dayLength: 99, reward: 24,
+    brief: "Rebuild the civic city and give the Senate a permanent home.",
+    goal: { road: 13, hut: 10, workshop: 4, market: 1, forum: 1, aqueduct: 3, temple: 1, senate: 1 },
+    fact: "Julius Caesar began his new Forum in 54 B.C. because the old Forum had become inadequate; the project also relocated the Senate’s Curia.",
+    source: "Roma Capitale"
+  },
+  {
+    id: "eternal", name: "The Eternal City", dayLength: 110, reward: 35,
+    brief: "Build the complete city and crown Rome with the Colosseum.",
+    goal: { road: 15, hut: 12, workshop: 5, market: 1, forum: 1, aqueduct: 4, temple: 2, senate: 1, colosseum: 1 },
+    fact: "The Colosseum belonged to the Flavian building program and was inaugurated under Titus in A.D. 80—centuries after Rome’s earliest settlement.",
+    source: "Parco archeologico del Colosseo"
+  }
+];
+
+export const FRESH_CITY = {
+  mastered: [],
+  activeStage: "settlement"
+};
+
+export function normalizeCity(city, completedCampaigns = []) {
+  const validIds = CITY_STAGES.map((stage) => stage.id);
+  const mastered = Array.isArray(city?.mastered)
+    ? city.mastered.filter((id) => validIds.includes(id))
+    : completedCampaigns.includes("rome") ? validIds : [];
+  const firstUnmastered = CITY_STAGES.find((stage) => !mastered.includes(stage.id));
+  const requested = validIds.includes(city?.activeStage) ? city.activeStage : null;
+  return {
+    mastered,
+    activeStage: requested && !mastered.includes(requested)
+      ? requested
+      : firstUnmastered?.id || "eternal"
+  };
+}
+
+export function cityMasteryEffects(mastered = []) {
+  return {
+    gather: mastered.includes("market") ? 1.08 : 1,
+    delivery: mastered.includes("civic") ? 1.08 : 1,
+    extraTime: mastered.includes("senate") ? 5 : 0,
+    roadSpeed: mastered.includes("settlement") ? 0.82 : 1,
+    housingSpeed: mastered.includes("housing") ? 0.82 : 1,
+    stoneSpeed: mastered.includes("water") ? 0.88 : 1
+  };
+}
+
+export const PROVINCES = [
+  { id: "gallia", name: "Gallia", icon: "♜", reward: 12, brief: "Hard stone and distant roads test Roman logistics.", modifier: { cost: 1.1, time: 0, gather: 1 } },
+  { id: "hispania", name: "Hispania", icon: "☼", reward: 14, brief: "The western march begins late; daylight is shorter.", modifier: { cost: 1, time: -18, gather: 1 } },
+  { id: "aegyptus", name: "Aegyptus", icon: "▲", reward: 16, brief: "The Nile feeds crews, but monumental works demand more.", modifier: { cost: 1.08, time: 0, gather: 1.12 } },
+  { id: "asia", name: "Asia", icon: "✦", reward: 18, brief: "Prosperous cities expect the work to be finished swiftly.", modifier: { cost: 1.05, time: -10, gather: 1.06 } }
+];
+
+export const FRESH_EMPIRE = {
+  influence: 0,
+  conquered: [],
+  activeProvince: null
+};
+
+export function normalizeEmpire(empire) {
+  const conquered = Array.isArray(empire?.conquered)
+    ? empire.conquered.filter((id) => PROVINCES.some((province) => province.id === id))
+    : [];
+  const activeProvince = PROVINCES.some((province) => province.id === empire?.activeProvince)
+    && !conquered.includes(empire.activeProvince)
+    ? empire.activeProvince
+    : null;
+  return {
+    influence: Math.max(0, Math.floor(Number(empire?.influence) || 0)),
+    conquered,
+    activeProvince
+  };
+}
+
+export function provinceEffects(provinceId) {
+  return PROVINCES.find((province) => province.id === provinceId)?.modifier
+    || { cost: 1, time: 0, gather: 1 };
+}
+
+export function conquerProvince(empire, provinceId) {
+  const current = normalizeEmpire(empire);
+  const province = PROVINCES.find((item) => item.id === provinceId);
+  if (!province || current.conquered.includes(provinceId)) return current;
+  return {
+    influence: current.influence + province.reward,
+    conquered: [...current.conquered, provinceId],
+    activeProvince: null
+  };
+}
+
 export function upgradeCost(upgrade, level) {
   return Math.ceil(upgrade.base * Math.pow(1.75, level));
 }
@@ -48,6 +175,8 @@ export function normalizeLegacy(legacySave, freshLegacy, upgrades) {
     completedCampaigns,
     campaignStats: legacySave.campaignStats || {},
     runHistory: Array.isArray(legacySave.runHistory) ? legacySave.runHistory.slice(0, 30) : [],
+    empire: normalizeEmpire(legacySave.empire),
+    city: normalizeCity(legacySave.city, completedCampaigns),
     achievements: legacySave.achievements || [],
     upgrades: normalizedUpgrades
   };
@@ -124,6 +253,11 @@ export function professionEffects(professions, totalWorkers) {
     engineering: 1 + professions.engineers * 0.075,
     engineerSlot: professions.engineers >= 4
   };
+}
+
+export function workforceCoordination(assignedWorkers) {
+  const assigned = Math.max(0, Number(assignedWorkers) || 0);
+  return assigned <= 16 ? 1 : Math.pow(16 / assigned, 0.45);
 }
 
 export function campaignEffects(campaignId, buildings, totalWorkers, resources) {

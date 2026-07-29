@@ -3,17 +3,25 @@ import {
   CAMPAIGNS,
   campaignProgress,
   campaignEffects,
+  CITY_STAGES,
+  cityMasteryEffects,
   createSaveEnvelope,
+  conquerProvince,
   diagnoseFailure,
+  FRESH_EMPIRE,
   isCampaignComplete,
   LEGACY_SAVE_KEY,
   loadSave,
   normalizeLegacy,
   professionEffects,
+  normalizeEmpire,
+  normalizeCity,
+  provinceEffects,
   resetSave,
   restoreRunState,
   SAVE_KEY,
-  upgradeCost
+  upgradeCost,
+  workforceCoordination
 } from "./game-core";
 
 const upgrades = [
@@ -54,6 +62,24 @@ describe("save progression", () => {
     expect(save.legacy).toEqual(freshLegacy);
     expect(4 + save.legacy.upgrades.rations * 2 + save.legacy.upgrades.legion * 4).toBe(4);
     expect(save.run).toBeNull();
+  });
+
+  it("adds a clean Empire state to saves created before provinces", () => {
+    const legacy = normalizeLegacy({ day: 8 }, freshLegacy, upgrades);
+    expect(legacy.empire).toEqual(FRESH_EMPIRE);
+  });
+
+  it("normalizes invalid Empire progress without erasing valid influence", () => {
+    const empire = normalizeEmpire({
+      influence: 27.9,
+      conquered: ["gallia", "unknown"],
+      activeProvince: "gallia"
+    });
+    expect(empire).toEqual({
+      influence: 27,
+      conquered: ["gallia"],
+      activeProvince: null
+    });
   });
 
   it("migrates a version-1 legacy save into the version-2 model", () => {
@@ -112,6 +138,82 @@ describe("save progression", () => {
     expect(storage.has(LEGACY_SAVE_KEY)).toBe(false);
     expect(storage.has("unrelated")).toBe(true);
     expect(normalizeLegacy(null, freshLegacy, upgrades)).toEqual(freshLegacy);
+  });
+});
+
+describe("Empire provinces", () => {
+  it("uses neutral modifiers when no province is selected", () => {
+    expect(provinceEffects(null)).toEqual({ cost: 1, time: 0, gather: 1 });
+  });
+
+  it("gives every province a meaningful one-day modifier", () => {
+    for (const provinceId of ["gallia", "hispania", "aegyptus", "asia"]) {
+      const effects = provinceEffects(provinceId);
+      expect(effects.cost !== 1 || effects.time !== 0 || effects.gather !== 1).toBe(true);
+    }
+  });
+
+  it("awards influence once when a province is conquered", () => {
+    const conquered = conquerProvince({ influence: 5, conquered: [], activeProvince: "gallia" }, "gallia");
+    const repeated = conquerProvince(conquered, "gallia");
+    expect(conquered).toEqual({ influence: 17, conquered: ["gallia"], activeProvince: null });
+    expect(repeated).toEqual(conquered);
+  });
+});
+
+describe("Rome district ladder", () => {
+  it("makes every stage cumulative and ends with the complete city", () => {
+    for (let index = 1; index < CITY_STAGES.length; index += 1) {
+      const previous = CITY_STAGES[index - 1].goal;
+      const current = CITY_STAGES[index].goal;
+      for (const [buildingId, count] of Object.entries(previous)) {
+        expect(current[buildingId]).toBeGreaterThanOrEqual(count);
+      }
+    }
+    expect(CITY_STAGES.at(-1).goal).toMatchObject({
+      market: 1, forum: 1, senate: 1, colosseum: 1
+    });
+  });
+
+  it("keeps later district time increases tight despite the larger city", () => {
+    expect(CITY_STAGES.map((stage) => stage.dayLength)).toEqual([60, 66, 72, 80, 89, 99, 110]);
+    for (let index = 1; index < CITY_STAGES.length; index += 1) {
+      expect(CITY_STAGES[index].dayLength - CITY_STAGES[index - 1].dayLength).toBeLessThanOrEqual(11);
+    }
+    expect(CITY_STAGES.at(-1).dayLength + cityMasteryEffects(["senate"]).extraTime).toBe(115);
+  });
+
+  it("starts new players at the settlement and advances to the first unmastered stage", () => {
+    expect(normalizeCity(null, [])).toEqual({ mastered: [], activeStage: "settlement" });
+    expect(normalizeCity({ mastered: ["settlement", "market"] }, [])).toEqual({
+      mastered: ["settlement", "market"],
+      activeStage: "housing"
+    });
+  });
+
+  it("grandfathers existing Rome victors into the completed city", () => {
+    const city = normalizeCity(null, ["rome"]);
+    expect(city.mastered).toEqual(CITY_STAGES.map((stage) => stage.id));
+    expect(city.activeStage).toBe("eternal");
+  });
+
+  it("turns mastery into efficiency without prebuilding districts", () => {
+    const effects = cityMasteryEffects(["settlement", "market", "housing", "civic", "water", "senate"]);
+    expect(effects.gather).toBeGreaterThan(1);
+    expect(effects.delivery).toBeGreaterThan(1);
+    expect(effects.extraTime).toBeGreaterThan(0);
+    expect(effects.roadSpeed).toBeLessThan(1);
+    expect(effects.housingSpeed).toBeLessThan(1);
+    expect(effects.stoneSpeed).toBeLessThan(1);
+  });
+
+  it("uses B.C. and A.D. notation in every dated historical fact", () => {
+    const datedFacts = CITY_STAGES.map((stage) => stage.fact).filter((fact) => /\d/.test(fact));
+    expect(datedFacts.length).toBeGreaterThan(0);
+    for (const fact of datedFacts) {
+      expect(fact).not.toMatch(/\bBCE\b|\bCE\b/);
+      expect(fact).toMatch(/B\.C\.|A\.D\./);
+    }
   });
 });
 
@@ -195,6 +297,15 @@ describe("day professions", () => {
     expect(professionEffects({
       laborers: 0, masons: 0, haulers: 0, engineers: 3
     }, 4).engineerSlot).toBe(false);
+  });
+});
+
+describe("workforce coordination", () => {
+  it("keeps ordinary crews fully effective and applies roster-wide diminishing returns to legions", () => {
+    expect(workforceCoordination(16)).toBe(1);
+    expect(workforceCoordination(44)).toBeCloseTo(0.634, 2);
+    expect(44 * workforceCoordination(44)).toBeGreaterThan(16);
+    expect(44 * workforceCoordination(44)).toBeLessThan(30);
   });
 });
 

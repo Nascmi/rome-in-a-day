@@ -31,6 +31,8 @@ Implemented: timed construction, queues, professions, campaign pressure, and sup
 
 In progress: every chapter now has a distinct pressure model and landscape treatment.
 
+Rome is the primary campaign. Its seven cumulative district stages must all be mastered before Italia, Mare Nostrum, or the Empire become available.
+
 ### Rome
 
 - Senate and political mandate objectives
@@ -52,6 +54,10 @@ In progress: every chapter now has a distinct pressure model and landscape treat
 - Trade and piracy events
 
 ## Phase 4 — Empire Layer
+
+In progress: the first playable slice adds province selection, one-day province modifiers, conquests, and persistent influence after Mare Nostrum.
+
+The Empire is postgame content. It must never compete with or bypass the central objective of building the complete city of Rome in one day.
 
 - Province map
 - Campaign selection by territory

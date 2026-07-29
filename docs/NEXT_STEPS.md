@@ -15,7 +15,18 @@ Rome in a Day is live and synchronized:
 
 The current game has three campaigns, timed construction, campaign objectives, active-run resume, permanent Legacy upgrades, and a confirmed full reset.
 
-## Recommended Next Milestone: Make Progression Trustworthy
+## Recommended Next Milestone: Validate the Complete-City Ladder
+
+The current local milestone replaces the one-Colosseum Rome objective with seven cumulative district stages. Before expanding Empire content, play every stage from a blank save and verify:
+
+- Each new objective clearly contains the mastered districts that came before it.
+- Market and Senate House costs create new decisions rather than simple waiting.
+- Mastery bonuses make repetition faster without making it automatic.
+- The Eternal City remains difficult but achievable through planning.
+- Italia stays locked until the complete city—not an early district—is built in one day.
+- Historical notes appear at the correct victories and use `B.C.` and `A.D.` notation.
+
+## Completed Milestone: Make Progression Trustworthy
 
 Before adding another major system, protect the progression loop with automated tests. Recent fixes changed victory timing, saved-run recovery, reset behavior, and Legacy caps. Those systems now carry enough player progress that regressions would be costly.
 

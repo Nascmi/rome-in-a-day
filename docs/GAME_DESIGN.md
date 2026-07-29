@@ -84,13 +84,19 @@ The final ten seconds produce audible ticks. The last three ticks use a higher w
 
 ### Chapter I — Rome
 
-Day length: 90 seconds.
+Rome is the primary campaign and contains seven cumulative stages:
 
-Objective:
+1. First Settlement
+2. Market District
+3. Residential Rome
+4. Civic District
+5. Water & Faith
+6. Senate District
+7. The Eternal City
 
-- Build one Colosseum.
+Every stage includes all requirements from the preceding stage. Earlier districts must therefore be rebuilt before a new district can be added.
 
-Rome is the introductory campaign. It teaches resource gathering, assignment, construction costs, roads, workshops, and the reset loop.
+District mastery grants efficiency knowledge but never places a building automatically. Only The Eternal City—containing roads, housing, workshops, market, Forum, aqueducts, temples, Senate House, and Colosseum—counts as building Rome in one day and unlocks Italia.
 
 ### Chapter II — Italia
 
@@ -202,19 +208,22 @@ Large assigned crews use diminishing coordination returns:
 ```text
 effective crew = assigned workers                    when assigned <= 8
 effective crew = 8 + (assigned workers - 8)^0.72    when assigned > 8
+
+roster coordination = 100%                           when total assigned <= 16
+roster coordination = (16 / total assigned)^0.45     when total assigned > 16
 ```
 
-This preserves the excitement of a large workforce while preventing linear worker growth from reducing a civilization-scale campaign to a few seconds.
+The first curve limits oversized crews on a single task. The second closes the loophole created by splitting a legion among several jobs. This preserves the excitement of a large workforce while preventing linear worker growth from reducing a civilization-scale campaign to a few seconds.
 
 ## Completion and Failure
 
-A campaign completes when every entry in its objective map reaches the required count. The game then:
+A campaign or Rome district stage completes when every entry in its objective map reaches the required count. The game then:
 
-- Marks the campaign as completed
+- Marks the district as mastered, or the campaign as completed
 - Awards the campaign completion bonus
 - Records a victory
 - Shows the completion screen
-- Unlocks the next chapter
+- Unlocks the next district; only the final Rome stage unlocks the next chapter
 
 At ordinary sunset, the physical run resets while the legacy state persists.
 
@@ -230,4 +239,4 @@ The sunset report explains:
 
 ## Current End State
 
-Completing Mare Nostrum currently displays “Rule the Empire” and begins another attempt. A larger geographic empire layer is a future system, not yet implemented.
+Completing the full city of Rome unlocks Italia. Completing Italia unlocks Mare Nostrum. Completing Mare Nostrum unlocks the postgame Empire map, where province modifiers create new one-day challenges and victories earn Imperial Influence.

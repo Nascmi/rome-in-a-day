@@ -16,9 +16,9 @@ The game is touch-friendly, installable as a Progressive Web App, and playable o
 
 ## Current Features
 
-- Three campaign chapters: Rome, Italia, and Mare Nostrum
+- Seven cumulative Rome district stages followed by Italia, Mare Nostrum, and Empire postgame
 - Four gathered resources: timber, stone, clay, and food
-- Thirteen construction projects, including chapter-specific major works
+- Fifteen construction projects, including the Market, Senate House, and chapter-specific major works
 - Permanent builder and engineering upgrades
 - Three pre-dawn strategies with meaningful tradeoffs
 - Midday events that alter resources, gathering, or costs

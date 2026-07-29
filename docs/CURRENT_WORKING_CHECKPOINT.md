@@ -32,6 +32,30 @@ The current local follow-up adds:
 
 Before the next release, run the automated suite, production build, and responsive visual review, then increment the PWA cache.
 
+## Local Empire-Layer Work
+
+The current uncommitted milestone adds the first playable post-Mare-Nostrum layer:
+
+- Four selectable provinces with distinct one-day modifiers.
+- Persistent imperial influence and conquered-province records.
+- Backward-compatible Empire save normalization.
+- A responsive province map in the Chronicle.
+- Province victory rewards without weakening the daily reset.
+
+## Local Rome Rebuild
+
+The current local milestone restores the original progression:
+
+- Rome is now seven cumulative district challenges.
+- District timers are tuned to `60 / 66 / 72 / 80 / 89 / 99 / 110` seconds, with only 5 bonus seconds from Senate mastery, so later stages demand increasingly efficient execution.
+- Roster-wide legion logistics now reduce gathering and construction efficiency above 16 simultaneously assigned workers; 44 active builders operate at roughly 63% individual efficiency instead of bypassing diminishing returns by splitting across jobs.
+- Market and Senate House projects complete the city’s civic ladder.
+- Earlier districts must be rebuilt every day.
+- Mastery makes known work more efficient but never automatic.
+- Only the full Eternal City victory unlocks Italia and the Empire.
+- District victories reveal sourced “Rome Remembers” historical notes.
+- Historical dates use `B.C.` and `A.D.` exclusively.
+
 ## Most Recent Gameplay Work
 
 The current release rebalances permanent Legacy progression:

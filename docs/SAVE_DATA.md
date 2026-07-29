@@ -47,6 +47,8 @@ The current value is a versioned envelope containing permanent progress, prefere
 | `completedCampaigns` | Array of completed campaign IDs |
 | `campaignStats` | Attempts, victories, best progress, and best remaining time by campaign |
 | `runHistory` | Up to 30 recent local attempt summaries used for balance feedback |
+| `empire` | Persistent influence, conquered provinces, and the selected province challenge |
+| `city` | Mastered Rome districts and the next cumulative city stage |
 | `upgrades` | Permanent upgrade levels by ID |
 
 ## Active Run Shape
@@ -122,6 +124,9 @@ It removes:
 - The active run
 
 It then initializes a fresh version-2 save at Day 1 with four builders. Sound and music preferences remain in React state and are written back into the new envelope.
+
+Empire influence and province conquests are permanent progress and are removed by the full reset.
+Rome district mastery is also permanent progress. Mastery accelerates rebuilding but never preconstructs a district.
 
 ## Data Not Currently Saved
 

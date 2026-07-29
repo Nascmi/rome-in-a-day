@@ -3,19 +3,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CAMPAIGNS,
+  CITY_STAGES,
   campaignProgress,
   campaignEffects,
+  cityMasteryEffects,
   createSaveEnvelope,
+  conquerProvince,
   diagnoseFailure,
   EMPTY_PROFESSIONS,
+  FRESH_EMPIRE,
+  FRESH_CITY,
   isCampaignComplete,
   LEGACY_SAVE_KEY,
   loadSave,
+  PROVINCES,
+  provinceEffects,
   resetSave,
   restoreRunState,
   SAVE_KEY,
   professionEffects,
-  upgradeCost
+  upgradeCost,
+  workforceCoordination
 } from "./game-core";
 
 const DAY_LENGTH = 90;
@@ -60,7 +68,9 @@ const BUILDINGS = [
   { id: "temple", name: "Temple", roman: "TEMPLUM", icon: "♜", seconds: 12, cost: { wood: 25, stone: 55, clay: 30 }, points: 160, max: 2, desc: "A monument worthy of memory." },
   { id: "colosseum", name: "Colosseum", roman: "COLOSSEUM", icon: "◉", seconds: 20, cost: { wood: 90, stone: 160, clay: 110, food: 60 }, points: 600, max: 1, campaigns: ["rome", "mediterranean"], desc: "The crowning achievement of the capital." },
   { id: "granary", name: "Granary", roman: "HORREUM", icon: "▤", seconds: 9, cost: { wood: 95, clay: 120, food: 70 }, points: 340, max: 2, campaigns: ["italia"], desc: "Feeds the towns of a united peninsula." },
-  { id: "forum", name: "Great Forum", roman: "FORUM", icon: "▥", seconds: 18, cost: { wood: 140, stone: 210, clay: 90, food: 80 }, points: 720, max: 1, campaigns: ["italia"], desc: "The civic heart of all Italia." },
+  { id: "market", name: "Market", roman: "MACELLUM", icon: "▦", seconds: 10, cost: { wood: 55, stone: 35, clay: 45, food: 25 }, points: 210, max: 1, campaigns: ["rome"], desc: "Trade turns gathered materials into a functioning city." },
+  { id: "forum", name: "Great Forum", roman: "FORUM", icon: "▥", seconds: 18, cost: { wood: 140, stone: 210, clay: 90, food: 80 }, points: 720, max: 1, campaigns: ["rome", "italia"], desc: "The civic heart of Roman public life." },
+  { id: "senate", name: "Senate House", roman: "CURIA", icon: "♜", seconds: 24, cost: { wood: 170, stone: 300, clay: 140, food: 100 }, points: 1050, max: 1, campaigns: ["rome"], desc: "A permanent chamber for Rome’s government." },
   { id: "fort", name: "Frontier Fort", roman: "CASTRUM", icon: "▰", seconds: 20, cost: { wood: 190, stone: 260, clay: 120, food: 140 }, points: 900, max: 1, campaigns: ["italia"], desc: "Secures the roads and distant settlements." },
   { id: "harbor", name: "Grand Harbor", roman: "PORTUS", icon: "≋", seconds: 18, cost: { wood: 260, stone: 210, clay: 140, food: 180 }, points: 1100, max: 2, campaigns: ["mediterranean"], desc: "Opens a gateway across the inland sea." },
   { id: "shipyard", name: "Imperial Shipyard", roman: "NAVALIA", icon: "ϟ", seconds: 25, cost: { wood: 440, stone: 280, clay: 160, food: 250 }, points: 1700, max: 1, campaigns: ["mediterranean"], desc: "Constructs the fleet that binds the empire." },
@@ -92,13 +102,15 @@ const ACHIEVEMENTS = [
   { id: "town", name: "A Town by Noon", icon: "⌂", desc: "Reach 250 renown.", test: (s) => s.score >= 250 },
   { id: "workforce", name: "Many Hands", icon: "♟", desc: "Command 20 workers.", test: (s) => s.workers >= 20 },
   { id: "veteran", name: "Persistent as Rome", icon: "☼", desc: "Attempt 10 days.", test: (s) => s.day >= 10 },
-  { id: "rome", name: "The Impossible", icon: "◉", desc: "Build the Colosseum before sunset.", test: (s) => s.victories >= 1 }
+  { id: "rome", name: "The Impossible", icon: "◉", desc: "Build the complete city of Rome before sunset.", test: (s) => s.completedCampaigns?.includes("rome") }
 ];
 
 const emptyBuildings = Object.fromEntries(BUILDINGS.map((b) => [b.id, 0]));
 const freshLegacy = {
   day: 1, laurels: 0, best: 0, total: 0, victories: 0, achievements: [],
   completedCampaigns: [], campaignStats: {}, runHistory: [],
+  empire: { ...FRESH_EMPIRE },
+  city: { ...FRESH_CITY },
   upgrades: { hands: 0, rations: 0, carts: 0, foremen: 0, architects: 0, legion: 0 }
 };
 
@@ -141,9 +153,18 @@ function App() {
   const musicTimer = useRef(null);
   const constructionQueueRef = useRef([]);
 
-  const activeCampaign = CAMPAIGNS.find((campaign) => campaign.id === campaignId) || CAMPAIGNS[0];
+  const baseCampaign = CAMPAIGNS.find((campaign) => campaign.id === campaignId) || CAMPAIGNS[0];
+  const activeCityStage = CITY_STAGES.find((stage) => stage.id === legacy.city?.activeStage) || CITY_STAGES[0];
+  const activeCampaign = campaignId === "rome"
+    ? { ...baseCampaign, dayLength: activeCityStage.dayLength, reward: activeCityStage.reward, goal: activeCityStage.goal, brief: activeCityStage.brief }
+    : baseCampaign;
   const activePlan = PLANS.find((plan) => plan.id === planId) || PLANS[0];
-  const districtUnlocked = (district) => district.victory ? legacy.victories >= district.need : legacy.total >= district.need;
+  const activeProvince = campaignId === "mediterranean"
+    ? PROVINCES.find((province) => province.id === legacy.empire?.activeProvince) || null
+    : null;
+  const provinceBonus = provinceEffects(activeProvince?.id);
+  const cityMastery = cityMasteryEffects(legacy.city?.mastered);
+  const districtUnlocked = (district) => district.victory ? legacy.completedCampaigns.includes("rome") : legacy.total >= district.need;
   const forumBonus = districtUnlocked(DISTRICTS[1]) ? 1.1 : 1;
   const palatineBonus = districtUnlocked(DISTRICTS[2]) ? 10 : 0;
   const suburaWorkers = districtUnlocked(DISTRICTS[3]) ? 4 : 0;
@@ -152,19 +173,27 @@ function App() {
   const resourceWorkers = Object.values(workers).reduce((a, b) => a + b, 0);
   const assigned = resourceWorkers + constructionWorkers;
   const idle = totalWorkers - assigned;
+  const coordinationScale = workforceCoordination(assigned);
   const score = Math.floor(BUILDINGS.reduce((sum, b) => sum + buildings[b.id] * b.points, 0) * capitolineBonus);
   const roadBonus = 1 + Math.floor(buildings.road / 3) * 0.05;
   const workshopBonus = 1 + buildings.workshop * 0.12;
   const professionBonus = professionEffects(professions, totalWorkers);
   const campaignBonus = campaignEffects(campaignId, buildings, totalWorkers, resources);
-  const gatherRate = (1 + legacy.upgrades.hands * 0.15) * roadBonus * workshopBonus * forumBonus * activePlan.gather * dayModifier.gather * professionBonus.delivery * campaignBonus.delivery * campaignBonus.efficiency;
+  const gatherRate = (1 + legacy.upgrades.hands * 0.15) * roadBonus * workshopBonus * forumBonus * activePlan.gather * dayModifier.gather * professionBonus.delivery * campaignBonus.delivery * campaignBonus.efficiency * provinceBonus.gather * cityMastery.gather * cityMastery.delivery * coordinationScale;
   const resourceGatherRate = (jobId) => gatherRate * (jobId === "wood" || jobId === "clay" ? professionBonus.laborerGather : 1);
   const effectiveCrew = (count) => count <= 8 ? count : 8 + Math.pow(count - 8, professionBonus.coordinationExponent);
   const constructionSpeed = (project) => {
     const building = project ? BUILDINGS.find((item) => item.id === project.buildingId) : null;
     const masonryBonus = building?.cost.stone ? professionBonus.masonry : 1;
     const engineeringBonus = building?.points >= 600 ? professionBonus.engineering : 1;
-    return (0.35 + effectiveCrew(constructionWorkers) * 0.22) * dayModifier.construction * masonryBonus * engineeringBonus * campaignBonus.efficiency;
+    const masterySpeed = building?.id === "road" || building?.id === "workshop"
+      ? cityMastery.roadSpeed
+      : building?.id === "hut"
+        ? cityMastery.housingSpeed
+        : building?.cost.stone
+          ? cityMastery.stoneSpeed
+          : 1;
+    return (0.35 + effectiveCrew(constructionWorkers) * 0.22) * dayModifier.construction * masonryBonus * engineeringBonus * campaignBonus.efficiency * coordinationScale / masterySpeed;
   };
   const buildSlots = legacy.upgrades.architects >= 3 || professionBonus.engineerSlot ? 2 : 1;
   const campaignComplete = isCampaignComplete(activeCampaign, buildings);
@@ -179,7 +208,7 @@ function App() {
       remaining: needed - buildings[id]
     }))
     .sort((a, b) => (a.built / a.needed) - (b.built / b.needed));
-  const currentDayLength = activeCampaign.dayLength + activePlan.time;
+  const currentDayLength = activeCampaign.dayLength + activePlan.time + provinceBonus.time + (campaignId === "rome" ? cityMastery.extraTime : 0);
   const elapsedRatio = 1 - (time / currentDayLength);
   const dayPhase = !running ? "dawn" : time <= 15 ? "final" : elapsedRatio >= 0.78 ? "evening" : elapsedRatio >= 0.45 ? "afternoon" : "morning";
   const guidance = !running && !ended
@@ -228,6 +257,9 @@ function App() {
       } else if (save.legacy.completedCampaigns.includes("rome")) {
         setCampaignId(save.legacy.completedCampaigns.includes("italia") ? "mediterranean" : "italia");
         setTime(save.legacy.completedCampaigns.includes("italia") ? CAMPAIGNS[2].dayLength : CAMPAIGNS[1].dayLength);
+      } else {
+        const savedStage = CITY_STAGES.find((stage) => stage.id === save.legacy.city.activeStage) || CITY_STAGES[0];
+        setTime(savedStage.dayLength + cityMasteryEffects(save.legacy.city.mastered).extraTime);
       }
     } catch {}
     setLoaded(true);
@@ -290,8 +322,8 @@ function App() {
   }, [loaded, legacy, soundOn, musicOn, running, pendingRun, campaignId, planId, time, resources, workers, constructionWorkers, professions, constructionQueue, buildings, dayEvent, dayModifier, lastPush, announcedPhase]);
 
   useEffect(() => {
-    latest.current = { score, buildings, won, campaignId, time, constructionQueue, professions, totalWorkers, resources, constructionWorkers, pressure: campaignBonus };
-  }, [score, buildings, won, campaignId, time, constructionQueue, professions, totalWorkers, resources, constructionWorkers, campaignBonus]);
+    latest.current = { score, buildings, won, campaignId, time, constructionQueue, professions, totalWorkers, resources, constructionWorkers, pressure: campaignBonus, activeProvince, campaign: activeCampaign, cityStage: campaignId === "rome" ? activeCityStage : null };
+  }, [score, buildings, won, campaignId, time, constructionQueue, professions, totalWorkers, resources, constructionWorkers, campaignBonus, activeProvince, activeCampaign, activeCityStage]);
 
   useEffect(() => {
     constructionQueueRef.current = constructionQueue;
@@ -299,14 +331,14 @@ function App() {
 
   useEffect(() => {
     if (!loaded) return;
-    const snapshot = { total: legacy.total, day: legacy.day, victories: legacy.victories, buildings, score, workers: totalWorkers };
+    const snapshot = { total: legacy.total, day: legacy.day, victories: legacy.victories, completedCampaigns: legacy.completedCampaigns, buildings, score, workers: totalWorkers };
     const newlyEarned = ACHIEVEMENTS.filter((achievement) => !legacy.achievements.includes(achievement.id) && achievement.test(snapshot));
     if (!newlyEarned.length) return;
     const achievement = newlyEarned[0];
     setLegacy((old) => ({ ...old, achievements: [...old.achievements, achievement.id], laurels: old.laurels + 3 }));
     setToast({ title: "Achievement", text: achievement.name, icon: achievement.icon });
     chime();
-  }, [loaded, legacy.total, legacy.day, legacy.victories, legacy.achievements, buildings, score, totalWorkers, chime]);
+  }, [loaded, legacy.total, legacy.day, legacy.victories, legacy.completedCampaigns, legacy.achievements, buildings, score, totalWorkers, chime]);
 
   useEffect(() => {
     if (!toast) return;
@@ -319,7 +351,8 @@ function App() {
     setEnded(true);
     const current = latest.current;
     const completed = Object.values(current.buildings || {}).reduce((a, b) => a + b, 0);
-    const completedCampaign = CAMPAIGNS.find((campaign) => campaign.id === current.campaignId) || CAMPAIGNS[0];
+    const completedCampaign = current.campaign || CAMPAIGNS.find((campaign) => campaign.id === current.campaignId) || CAMPAIGNS[0];
+    const cityFinal = current.campaignId === "rome" && current.cityStage?.id === CITY_STAGES.at(-1).id;
     const goalEntries = Object.entries(completedCampaign.goal);
     const progress = campaignProgress(completedCampaign, current.buildings || {}, current.constructionQueue || []);
     const oldStats = legacy.campaignStats[completedCampaign.id] || { attempts: 0, victories: 0, bestProgress: 0, bestTimeRemaining: 0 };
@@ -341,6 +374,11 @@ function App() {
       timeRemaining: current.time || 0,
       newProgressRecord,
       newTimeRecord,
+      provinceId: current.activeProvince?.id || null,
+      influenceEarned: victory ? (current.activeProvince?.reward || 0) : 0,
+      cityStage: current.cityStage || null,
+      cityFinal,
+      unlocksNextCampaign: victory && (current.campaignId !== "rome" || cityFinal),
       insights,
       underway: (current.constructionQueue || []).map((project) => ({
         name: project.name,
@@ -359,7 +397,7 @@ function App() {
       best: Math.max(old.best, current.score || 0),
       total: old.total + completed,
       victories: old.victories + (victory ? 1 : 0),
-      completedCampaigns: victory && !old.completedCampaigns.includes(completedCampaign.id)
+      completedCampaigns: victory && (completedCampaign.id !== "rome" || cityFinal) && !old.completedCampaigns.includes(completedCampaign.id)
         ? [...old.completedCampaigns, completedCampaign.id]
         : old.completedCampaigns,
       campaignStats: {
@@ -384,10 +422,23 @@ function App() {
           professions: { ...EMPTY_PROFESSIONS, ...(current.professions || {}) }
         },
         ...(old.runHistory || [])
-      ].slice(0, 30)
+      ].slice(0, 30),
+      empire: victory && current.activeProvince
+        ? conquerProvince(old.empire, current.activeProvince.id)
+        : old.empire,
+      city: victory && current.cityStage
+        ? {
+            mastered: old.city?.mastered?.includes(current.cityStage.id)
+              ? old.city.mastered
+              : [...(old.city?.mastered || []), current.cityStage.id],
+            activeStage: CITY_STAGES[CITY_STAGES.findIndex((stage) => stage.id === current.cityStage.id) + 1]?.id || current.cityStage.id
+          }
+        : old.city
     }));
     if (victory) chime();
-    setMessage(victory ? "Rome stands before sunset. The impossible is done." : `Night falls. History remembers what your builders learned. +${earned} laurels.`);
+    setMessage(victory
+      ? cityFinal ? "Rome stands complete before sunset. The impossible is done." : current.cityStage ? `${current.cityStage.name} mastered. Tomorrow, Rome asks for more.` : `${completedCampaign.name} stands complete before sunset.`
+      : `Night falls. History remembers what your builders learned. +${earned} laurels.`);
   }, [chime, legacy.campaignStats]);
 
   useEffect(() => {
@@ -451,8 +502,10 @@ function App() {
   useEffect(() => {
     if (!running || !campaignComplete || won) return;
     setWon(true);
-    setMessage(`${activeCampaign.name} stands complete before sunset.`);
-  }, [running, campaignComplete, won, activeCampaign.name]);
+    setMessage(campaignId === "rome"
+      ? `${activeCityStage.name} stands complete before sunset.`
+      : `${activeCampaign.name} stands complete before sunset.`);
+  }, [running, campaignComplete, won, activeCampaign.name, activeCityStage.name, campaignId]);
 
   useEffect(() => {
     if (!running || !won) return;
@@ -461,7 +514,7 @@ function App() {
   }, [running, won, finishDay]);
 
   useEffect(() => {
-    if (!running || dayEvent || time !== Math.floor((activeCampaign.dayLength + activePlan.time) * 0.55)) return;
+    if (!running || dayEvent || time !== Math.floor(currentDayLength * 0.55)) return;
     const event = DAY_EVENTS[(legacy.day + CAMPAIGNS.findIndex((campaign) => campaign.id === campaignId)) % DAY_EVENTS.length];
     setDayEvent(event.id);
     if (event.id === "supply") {
@@ -473,7 +526,7 @@ function App() {
     }
     setToast({ title: event.title, text: event.text, icon: event.icon });
     chime();
-  }, [running, dayEvent, time, activeCampaign.dayLength, activePlan.time, legacy.day, campaignId, chime]);
+  }, [running, dayEvent, time, currentDayLength, legacy.day, campaignId, chime]);
 
   useEffect(() => {
     if (!running || dayPhase === announcedPhase) return;
@@ -496,7 +549,7 @@ function App() {
 
   const startDay = () => {
     if (running) return;
-    setTime(activeCampaign.dayLength + activePlan.time);
+    setTime(currentDayLength);
     setLastResult(null);
     setAnnouncedPhase("dawn");
     setRunning(true);
@@ -550,7 +603,7 @@ function App() {
 
   const costFor = (building) => Object.fromEntries(Object.entries(building.cost).map(([key, amount]) => [
     key,
-    Math.max(1, Math.ceil(amount * Math.max(0.65, Math.max(0.5, 1 - legacy.upgrades.architects * 0.05) * activePlan.cost * dayModifier.cost) * (activeCampaign.costScale || 1)))
+    Math.max(1, Math.ceil(amount * Math.max(0.65, Math.max(0.5, 1 - legacy.upgrades.architects * 0.05) * activePlan.cost * dayModifier.cost) * (activeCampaign.costScale || 1) * provinceBonus.cost))
   ]));
   const canAfford = (building) => Object.entries(costFor(building)).every(([key, amount]) => resources[key] >= amount);
   const queuedCount = (buildingId) => constructionQueue.filter((project) => project.buildingId === buildingId).length;
@@ -582,11 +635,11 @@ function App() {
 
   const tomorrow = () => {
     const currentIndex = CAMPAIGNS.findIndex((campaign) => campaign.id === campaignId);
-    const nextCampaign = won && currentIndex < CAMPAIGNS.length - 1 ? CAMPAIGNS[currentIndex + 1] : activeCampaign;
+    const nextCampaign = won && lastResult?.unlocksNextCampaign && currentIndex < CAMPAIGNS.length - 1 ? CAMPAIGNS[currentIndex + 1] : activeCampaign;
     setLegacy((old) => ({ ...old, day: old.day + 1 }));
     if (nextCampaign.id !== campaignId) setCampaignId(nextCampaign.id);
     setPlanId("balanced");
-    setTime(nextCampaign.dayLength);
+    setTime(nextCampaign.dayLength + (nextCampaign.id === "rome" ? cityMastery.extraTime : 0));
     setResources({ wood: 15 + palatineBonus, stone: 12 + palatineBonus, clay: 8 + palatineBonus, food: 15 + palatineBonus });
     setWorkers({ wood: 0, stone: 0, clay: 0, food: 0 });
     setConstructionWorkers(0);
@@ -601,7 +654,7 @@ function App() {
     setEnded(false);
     setWon(false);
     setMessage(nextCampaign.id !== campaignId ? `${nextCampaign.name} awaits. Rome’s knowledge marches with you.` : "The city is gone. The knowledge remains.");
-    setActiveTab("build");
+    setActiveTab(won && campaignId === "mediterranean" ? "chronicle" : "build");
   };
 
   const buyUpgrade = (up) => {
@@ -665,7 +718,7 @@ function App() {
     setLegacy({ ...freshLegacy, achievements: [], completedCampaigns: [], campaignStats: {}, upgrades: { ...freshLegacy.upgrades } });
     setCampaignId("rome");
     setPlanId("balanced");
-    setTime(CAMPAIGNS[0].dayLength);
+    setTime(CITY_STAGES[0].dayLength);
     setResources({ wood: 15, stone: 12, clay: 8, food: 15 });
     setWorkers({ wood: 0, stone: 0, clay: 0, food: 0 });
     setConstructionWorkers(0);
@@ -704,7 +757,7 @@ function App() {
     if (!unlocked || running) return;
     setCampaignId(campaign.id);
     setPlanId("balanced");
-    setTime(campaign.dayLength);
+    setTime(campaign.id === "rome" ? activeCityStage.dayLength + cityMastery.extraTime : campaign.dayLength);
     setResources({ wood: 15 + palatineBonus, stone: 12 + palatineBonus, clay: 8 + palatineBonus, food: 15 + palatineBonus });
     setWorkers({ wood: 0, stone: 0, clay: 0, food: 0 });
     setConstructionWorkers(0);
@@ -719,6 +772,29 @@ function App() {
     setEnded(false);
     setWon(false);
     setMessage(`${campaign.name}: ${campaign.brief}`);
+    setActiveTab("build");
+  };
+
+  const selectProvince = (province) => {
+    if (running || !legacy.completedCampaigns.includes("mediterranean") || legacy.empire?.conquered?.includes(province.id)) return;
+    setLegacy((old) => ({ ...old, empire: { ...old.empire, activeProvince: province.id } }));
+    setCampaignId("mediterranean");
+    setPlanId("balanced");
+    setTime(CAMPAIGNS[2].dayLength + province.modifier.time);
+    setResources({ wood: 15 + palatineBonus, stone: 12 + palatineBonus, clay: 8 + palatineBonus, food: 15 + palatineBonus });
+    setWorkers({ wood: 0, stone: 0, clay: 0, food: 0 });
+    setConstructionWorkers(0);
+    setProfessions(EMPTY_PROFESSIONS);
+    setConstructionQueue([]);
+    setBuildings(emptyBuildings);
+    setDayEvent(null);
+    setDayModifier({ gather: 1, cost: 1, construction: 1 });
+    setLastPush(null);
+    setAnnouncedPhase("dawn");
+    setLastResult(null);
+    setEnded(false);
+    setWon(false);
+    setMessage(`${province.name}: ${province.brief}`);
     setActiveTab("build");
   };
 
@@ -822,6 +898,7 @@ function App() {
             <small>{campaignBonus.title}</small>
             <strong>{campaignBonus.value}</strong>
             <span>{campaignBonus.detail}</span>
+            {activeProvince && <em>{activeProvince.name} · {activeProvince.brief}</em>}
           </div>
           <div className="objectiveChecklist">
             <small>CHAPTER {activeCampaign.chapter} · {activeCampaign.brief}</small>
@@ -863,7 +940,7 @@ function App() {
         <aside className="workers">
           <div className="panelTitle"><span>WORKFORCE</span><strong>{idle} idle / {totalWorkers}</strong></div>
           {guidance && <div className="guidance"><span>?</span><div><strong>{guidance.title}</strong><small>{guidance.text}</small></div></div>}
-          {totalWorkers >= 32 && <div className="logisticsNote"><span>⚑</span><div><strong>LEGION LOGISTICS</strong><small>Large crews stay powerful, but each additional worker adds less output.</small></div></div>}
+          {totalWorkers >= 32 && <div className="logisticsNote"><span>⚑</span><div><strong>LEGION LOGISTICS · {Math.round(coordinationScale * 100)}%</strong><small>Rome cannot coordinate every active crew at full efficiency. Leave builders idle or accept diminishing output.</small></div></div>}
           <div className="workerArt">{Array.from({ length: Math.min(totalWorkers, 16) }).map((_, i) => <i key={i}>♟</i>)}</div>
           {JOBS.map((job) => (
             <div className="job" key={job.id}>
@@ -895,7 +972,7 @@ function App() {
               <div className="planLabel">PRE-DAWN ORDERS</div>
               <div className="planChoices">
                 {PLANS.map((plan) => (
-                  <button className={planId === plan.id ? "selected" : ""} key={plan.id} onClick={() => { setPlanId(plan.id); setTime(activeCampaign.dayLength + plan.time); }}>
+                  <button className={planId === plan.id ? "selected" : ""} key={plan.id} onClick={() => { setPlanId(plan.id); setTime(activeCampaign.dayLength + plan.time + provinceBonus.time + (campaignId === "rome" ? cityMastery.extraTime : 0)); }}>
                     <span>{plan.icon}</span><div><strong>{plan.name}</strong><small>{plan.desc}</small></div>
                   </button>
                 ))}
@@ -975,6 +1052,21 @@ function App() {
                 <span><b>{runSummary.averageProgress}%</b> average progress</span>
                 <span><b>{runSummary.averageWorkers}</b> average builders</span>
               </div>
+              <section className="cityLadder">
+                <div className="cityLadderHead"><small>BUILD ROME IN A DAY</small><strong>{legacy.city?.mastered?.length || 0} / {CITY_STAGES.length} districts mastered</strong></div>
+                <div>
+                  {CITY_STAGES.map((stage, index) => {
+                    const mastered = legacy.city?.mastered?.includes(stage.id);
+                    const active = legacy.city?.activeStage === stage.id;
+                    return (
+                      <article className={`${mastered ? "mastered" : ""} ${active ? "active" : ""}`} key={stage.id}>
+                        <span>{mastered ? "✓" : index + 1}</span>
+                        <div><strong>{stage.name}</strong><small>{stage.brief}</small><em>{mastered ? "MASTERY SURVIVES" : active ? "CURRENT CHALLENGE" : "NOT YET ATTEMPTED"}</em></div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
               <div className="campaignMap">
                 {CAMPAIGNS.map((campaign) => {
                   const unlocked = !campaign.unlock || legacy.completedCampaigns.includes(campaign.unlock);
@@ -988,6 +1080,28 @@ function App() {
                   );
                 })}
               </div>
+              <section className={`empireMap ${legacy.completedCampaigns.includes("mediterranean") ? "unlocked" : ""}`}>
+                <div className="empireMapHead">
+                  <div><small>THE EMPIRE</small><strong>{legacy.completedCampaigns.includes("mediterranean") ? `${legacy.empire?.influence || 0} influence` : "Beyond Mare Nostrum"}</strong></div>
+                  <span>{legacy.empire?.conquered?.length || 0} / {PROVINCES.length} provinces</span>
+                </div>
+                {legacy.completedCampaigns.includes("mediterranean") ? (
+                  <div className="provinceGrid">
+                    {PROVINCES.map((province) => {
+                      const conquered = legacy.empire?.conquered?.includes(province.id);
+                      const selected = legacy.empire?.activeProvince === province.id;
+                      return (
+                        <button className={`${conquered ? "conquered" : ""} ${selected ? "selected" : ""}`} key={province.id} disabled={running || conquered} onClick={() => selectProvince(province)}>
+                          <span>{conquered ? "✓" : province.icon}</span>
+                          <div><strong>{province.name}</strong><small>{conquered ? "Province secured" : province.brief}</small><em>{conquered ? `+${province.reward} influence earned` : `Victory reward · ${province.reward} influence`}</em></div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p>Complete Mare Nostrum to carry Rome’s one-day challenge into the provinces.</p>
+                )}
+              </section>
               <div className="chronicleHead">
                 <div><small>THE GROWING CITY</small><strong>{DISTRICTS.filter(districtUnlocked).length} / {DISTRICTS.length} districts</strong></div>
                 <div><small>DEEDS REMEMBERED</small><strong>{legacy.achievements.length} / {ACHIEVEMENTS.length} achievements</strong></div>
@@ -1062,15 +1176,22 @@ function App() {
         <div className="overlay">
           <div className="nightCard">
             <span className="wreath">❧</span>
-            <small>{won ? "THE IMPOSSIBLE DAY" : "SUNSET • ATTEMPT COMPLETE"}</small>
-            <h2>{won ? `${activeCampaign.name.toUpperCase()} STANDS.` : `${activeCampaign.name.toUpperCase()} WASN’T BUILT TODAY.`}</h2>
-            <p>{won ? `Against time itself, your builders completed the works of ${activeCampaign.name} before nightfall.` : lastResult?.progress >= 0.9 ? "So close that tomorrow already feels different." : "The roads vanish. The walls return to dust. But skilled hands remember."}</p>
+            <small>{won ? lastResult?.cityStage && !lastResult.cityFinal ? "DISTRICT MASTERED" : "THE IMPOSSIBLE DAY" : "SUNSET • ATTEMPT COMPLETE"}</small>
+            <h2>{won ? lastResult?.cityStage && !lastResult.cityFinal ? `${lastResult.cityStage.name.toUpperCase()} MASTERED.` : `${activeCampaign.name.toUpperCase()} STANDS.` : `${activeCampaign.name.toUpperCase()} WASN’T BUILT TODAY.`}</h2>
+            <p>{won ? lastResult?.cityStage && !lastResult.cityFinal ? "The builders know this district now. Tomorrow they must rebuild it—and add more Rome before sunset." : `Against time itself, your builders completed the works of ${activeCampaign.name} before nightfall.` : lastResult?.progress >= 0.9 ? "So close that tomorrow already feels different." : "The roads vanish. The walls return to dust. But skilled hands remember."}</p>
             {lastResult && (
               <div className={`attemptVerdict ${won ? "victory" : ""}`}>
                 <span>{won ? lastResult.timeRemaining <= 3 ? "BY THE FINAL RAY" : "BUILT BEFORE SUNSET" : lastResult.progress >= 0.9 ? "ALMOST IMPOSSIBLE" : "WHAT STOPPED THE BUILD"}</span>
                 {!won && <strong>{Math.round(lastResult.progress * 100)}% complete</strong>}
                 {won && <strong>{lastResult.timeRemaining}s of daylight remained</strong>}
                 {(lastResult.newProgressRecord || lastResult.newTimeRecord) && <em>NEW PERSONAL RECORD</em>}
+              </div>
+            )}
+            {won && lastResult?.cityStage?.fact && (
+              <div className="historyFact">
+                <small>ROME REMEMBERS</small>
+                <p>{lastResult.cityStage.fact}</p>
+                <em>{lastResult.cityStage.source}</em>
               </div>
             )}
             {!won && lastResult?.remaining?.length > 0 && (
@@ -1091,7 +1212,8 @@ function App() {
               </div>
             )}
             <div className="results"><span><small>RENOWN</small><b>{score}</b></span><span><small>PROGRESS</small><b>{Math.round((lastResult?.progress || objectiveProgress) * 100)}%</b></span><span><small>LAURELS</small><b>+{lastResult?.earned || 0}</b></span></div>
-            <button onClick={tomorrow}>{won && campaignId !== "mediterranean" ? "MARCH TO THE NEXT CHAPTER" : won ? "RULE THE EMPIRE" : "TRY AGAIN TOMORROW"} <span>→</span></button>
+            {lastResult?.influenceEarned > 0 && <div className="influenceAward"><span>✦</span><strong>+{lastResult.influenceEarned} IMPERIAL INFLUENCE</strong><small>{PROVINCES.find((province) => province.id === lastResult.provinceId)?.name} secured</small></div>}
+            <button onClick={tomorrow}>{won && lastResult?.cityStage && !lastResult.cityFinal ? "BUILD THE NEXT DISTRICT" : won && campaignId !== "mediterranean" ? "MARCH TO THE NEXT CHAPTER" : won ? "OPEN THE EMPIRE MAP" : "TRY AGAIN TOMORROW"} <span>→</span></button>
             <em>{won ? "History remembers the impossible." : "Now you know what tomorrow requires."}</em>
           </div>
         </div>

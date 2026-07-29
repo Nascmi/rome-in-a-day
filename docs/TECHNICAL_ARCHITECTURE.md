@@ -53,6 +53,8 @@ Persistent data includes:
 - Per-campaign attempts, victories, best progress, and best remaining time
 - Permanent upgrade levels
 - Recent local run summaries used for balance feedback
+- Empire influence, conquered provinces, and the active province challenge
+- Rome district mastery and active cumulative city stage
 
 ### Run state
 
@@ -155,6 +157,18 @@ Victory uses two effects:
 2. A separate effect performs the delayed transition into `finishDay(true)`.
 
 These must remain separate. Combining them previously caused the Italia victory timer to cancel itself during the `won` state update.
+
+### Empire provinces
+
+Completing Mare Nostrum unlocks province selection in the Chronicle. A selected province modifies the next Mediterranean-length attempt through cost, daylight, or gathering multipliers. The physical city still resets at sunset.
+
+Province victories update the persistent `empire` object through pure, idempotent conquest logic. A province awards influence only once.
+
+### Rome district ladder
+
+Rome uses seven cumulative goal maps. Each new stage includes every requirement from the preceding stage and adds another district or civic system. Only victory in `The Eternal City` adds Rome to `completedCampaigns` and unlocks Italia.
+
+District mastery stores efficiency knowledge only. Every attempt still begins with an empty `buildings` map.
 
 ## Audio
 
